@@ -10,7 +10,6 @@ import plotly.graph_objs as go
 
 dash.register_page(__name__, path="/sggui")
 
-# ── Paths (original) ───────────────────────────────────────────
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = PACKAGE_ROOT.parent
 DEFAULT_NGSF_DIR = PROJECT_ROOT / "NGSF"
@@ -19,9 +18,6 @@ NGSF_BASE = Path(os.environ.get("NGSF_DIR", str(DEFAULT_NGSF_DIR))).resolve()
 RESULTS_DIR = Path(os.environ.get("NGSF_RESULTS_DIR", str(NGSF_BASE / "results"))).resolve()
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# navbar removed from layout — app.py now owns it globally
-
-# ── Constants (original exactly) ──────────────────────────────
 RESULT_COLUMNS = [
     "SPECTRUM", "GALAXY", "SN", "CONST_SN", "CONST_GAL",
     "Z", "A_v", "Phase", "Band",
@@ -55,7 +51,6 @@ _PLOT_TOGGLE_OPTIONS = [
 ]
 _ALL_PLOT_VALUES = [opt["value"] for opt in _PLOT_TOGGLE_OPTIONS]
 
-# Original light-mode trace styles (preserved exactly)
 _TRACE_STYLES = {
     "obs": {"color": "#111111"},
     "gal": {"color": "#d62728"},
@@ -64,7 +59,6 @@ _TRACE_STYLES = {
     "omg": {"color": "#2ca02c"},
 }
 
-# NEW: dark-mode trace styles (additive — does not change original)
 _TRACE_STYLES_DARK = {
     "obs": {"color": "#e2e8f0"},
     "gal": {"color": "#ff6b6b"},
@@ -74,7 +68,7 @@ _TRACE_STYLES_DARK = {
 }
 
 
-# ── Helpers (original exactly) ─────────────────────────────────
+# Helpers 
 def _under_root(root: Path, p, *extra_roots: Path):
     if p is None or (isinstance(p, float) and np.isnan(p)):
         return None
@@ -108,7 +102,6 @@ def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def read_two_col_txt(path: Path) -> pd.DataFrame:
-    # Original: delim_whitespace=True
     try:
         df = pd.read_csv(path, delim_whitespace=True, header=None)
     except Exception:
@@ -128,7 +121,6 @@ def normalize_flux(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def binspec(df: pd.DataFrame, start_w: float, end_w: float, step: float) -> pd.DataFrame:
-    # Original signature exactly: (df, start_w, end_w, step)
     xs = np.arange(start_w, end_w, step, dtype=float)
     ys = np.interp(xs, df["wav"].to_numpy(), df["flux"].to_numpy(), left=np.nan, right=np.nan)
     return pd.DataFrame({"wav": xs, "flux": ys})
@@ -155,8 +147,6 @@ def _fmt_pct(x):
 
 
 def _base_figure(dark: bool = False) -> go.Figure:
-    # Original layout values preserved exactly.
-    # NEW: dark param added — swaps colours when dark=True, else identical to original.
     if dark:
         tmpl   = "plotly_dark"
         kwargs = dict(
@@ -170,7 +160,6 @@ def _base_figure(dark: bool = False) -> go.Figure:
                         font=dict(color="#e2e8f0")),
         )
     else:
-        # Original values exactly
         tmpl   = "plotly_white"
         kwargs = dict(
             xaxis=dict(title="Wavelength", tickformat=".0f"),
@@ -190,7 +179,6 @@ def _base_figure(dark: bool = False) -> go.Figure:
 
 
 def _line_style(key: str, dark: bool = False, width: int = 2) -> dict:
-    # Original logic preserved. NEW: dark param selects alternate palette.
     base  = {"width": width}
     extra = (_TRACE_STYLES_DARK if dark else _TRACE_STYLES).get(key, {})
     base.update({k: v for k, v in extra.items() if v is not None})
@@ -210,15 +198,12 @@ def _empty_results_response():
 
 
 def _fallback_figure(stored_fig, dark: bool = False):
-    # Original logic preserved. NEW: dark param passed to _base_figure.
     if stored_fig:
         fig = go.Figure(stored_fig)
         return fig, fig.to_dict()
     fig = _base_figure(dark)
     return fig, fig.to_dict()
 
-
-# ── Layout (original exactly; navbar removed — app.py owns it) ─
 bestfit_card = dbc.Card(
     [
         dbc.CardHeader(html.H4("Best Fit", className="mb-0")),
@@ -304,7 +289,6 @@ table_card = dbc.Card(
     className="shadow-sm mb-4",
 )
 
-# navbar removed from here — app.py now provides it for all pages
 layout = html.Div(
     [
         dbc.Container(
@@ -323,8 +307,6 @@ layout = html.Div(
 )
 
 
-# ── Callbacks ──────────────────────────────────────────────────
-
 @callback(
     Output("sggui-results-data", "data"),
     Output("sggui-results-path", "data"),
@@ -335,7 +317,6 @@ layout = html.Div(
     prevent_initial_call=False,
 )
 def load_results(run_flag):
-    # Original body exactly
     if isinstance(run_flag, dict) and run_flag.get("action") == "clear":
         return _empty_results_response()
 
@@ -373,8 +354,6 @@ def load_results(run_flag):
     State("sggui-last-figure", "data"),
 )
 def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, stored_fig):
-    # Original body exactly. NEW: dark derived from theme; passed to helpers.
-    # theme=None means store not yet hydrated → treat as light.
     dark = (theme == "dark")
 
     if not sel_rows or not table_data or not json_data:
@@ -569,7 +548,6 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
     State("sggui-results-data", "data"),
 )
 def update_bestfit(sel_rows, json_data):
-    # Original body exactly
     if not json_data:
         return ""
     df_all = pd.read_json(json_data, orient="split")
@@ -608,7 +586,6 @@ def update_bestfit(sel_rows, json_data):
     Input("sggui-results-data", "data"),
 )
 def toggle_bestfit_display(json_data):
-    # Original body exactly
     if not json_data:
         return {"display": "none"}
     try:

@@ -75,7 +75,6 @@ body {
   background: transparent !important;
 }
 
-/* ── Navbar — matches reference exactly ─────────────────────── */
 .superfit-navbar {
   background: var(--nav-bg) !important;
   border-bottom: 1px solid var(--nav-border) !important;

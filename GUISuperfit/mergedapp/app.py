@@ -11,8 +11,6 @@ app = dash.Dash(
 )
 server = app.server
 
-# ── Navbar — matches reference image exactly ───────────────────
-# Brand left | Input/Output tabs center | icons right
 navbar = html.Nav(
     className="superfit-navbar d-flex align-items-center justify-content-between",
     children=[
@@ -30,7 +28,6 @@ navbar = html.Nav(
             ],
         ),
 
-        # CENTER: Input / Output tabs
         html.Div(
             className="d-flex",
             children=dbc.Nav(
@@ -61,7 +58,6 @@ navbar = html.Nav(
     style={"position": "sticky", "top": "0", "zIndex": "1000"},
 )
 
-# Hidden dcc.Tabs for sync_navigation (original logic)
 tabs = dcc.Tabs(
     id="tabs",
     value="tab-sfgui",
@@ -88,9 +84,6 @@ app.layout = html.Div(
     ],
 )
 
-# ── Propagate theme to <html>/<body> ────────────────────────────────────
-# data-theme lives on #theme-wrapper (inside body), so Bootstrap's
-# white body background bleeds through unless we mirror it to <html>.
 app.clientside_callback(
     """
     function(theme) {
@@ -104,7 +97,6 @@ app.clientside_callback(
     Input("theme-store", "data"),
 )
 
-# ── Original sync_navigation (preserved exactly) ───────────────
 PATH_FOR_TAB = {"tab-sfgui": "/sfgui", "tab-sggui": "/sggui"}
 TAB_FOR_PATH = {
     "/":      "tab-sfgui",
@@ -140,7 +132,6 @@ def sync_navigation(tab_value, pathname):
     raise PreventUpdate
 
 
-# ── Single unified theme callback ─────────────────────────────
 @app.callback(
     Output("theme-wrapper", "data-theme"),
     Output("theme-toggle",  "children"),

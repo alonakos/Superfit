@@ -39,7 +39,7 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 RUNS = {}
 
 
-# ── Progress helpers (original) ────────────────────────────────
+# Progress helpers
 def _write_progress(path, percent, message=""):
     payload = {
         "percent": int(max(0, min(100, percent))),
@@ -62,7 +62,7 @@ def _read_progress(path):
         return 0, ""
 
 
-# ── SN categories (original) ──────────────────────────────────
+# SN categories
 sn_categories = {
     "IA": ["Ia 02es-like", "Ia-02cx like", "Ia-CSM-(ambigious)", "Ia 91T-like", "Ia-CSM",
            "Ia-norm", "Ia 91bg-like", "Ia-rapid"],
@@ -97,7 +97,7 @@ galaxy_options = [
     for g in ["E", "S0", "Sa", "Sb", "Sc", "SB1", "SB2", "SB3", "SB4", "SB5", "SB6"]
 ]
 
-# ── NEW: smooth resampler (bug fix — replaces choppy raw plot) ─
+# Smooth resampler
 def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) -> pd.DataFrame:
     if df.empty:
         return df
@@ -112,8 +112,6 @@ def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) 
     data_range = actual_hi - actual_lo
     n_points   = len(wav[(wav >= actual_lo) & (wav <= actual_hi)])
 
-    # Adaptive step: aim for ~500 display points regardless of data range
-    # Minimum step = native resolution, maximum = range/100 to avoid over-smoothing
     if n_points > 0:
         native_step = data_range / n_points
         adaptive_step = max(native_step, data_range / 500)
@@ -133,7 +131,7 @@ def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) 
     return out
 
 
-# ── Layout components (original IDs kept; visual style updated) ─
+# Layout components
 known_redshift_tab = dbc.Card(
     dbc.CardBody(
         dbc.Row(
@@ -531,7 +529,6 @@ layout = html.Div(
 )
 
 
-# ── _build_params (original) ───────────────────────────────────
 def _build_params(
     filename,
     z_known,
@@ -586,7 +583,6 @@ def _build_params(
     }
 
 
-# ── _parse_dat (original) ──────────────────────────────────────
 def _parse_dat(contents, filename):
     _, content_string = contents.split(",", 1)
     data = base64.b64decode(content_string)
@@ -685,7 +681,6 @@ def upload_file(contents, filename):
     )
 
 
-# NEW: added Output("sfgui-wave-range", "marks") — fixes slider label mismatch bug
 @callback(
     Output("sfgui-wave-range", "min"),
     Output("sfgui-wave-range", "max"),
@@ -730,7 +725,6 @@ def epoch_label(v):
     return f"Epoch range [{v[0]}, {v[1]}]"
 
 
-# NEW: added Input("theme-store", "data") for dark/light plot colours
 @callback(
     Output("sfgui-graph", "figure"),
     Input("sfgui-store-df", "data"),
@@ -787,7 +781,6 @@ def update_graph(df_json, wave_range, theme, filename):
     else:
         lo, hi = LOWER_LAM, UPPER_LAM
 
-    # NEW: resample to uniform grid + smooth — fixes choppy plot bug
     df_plot = _smooth_resample(df, lo, hi, step=5.0)
     if df_plot.empty:
         return fig
