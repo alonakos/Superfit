@@ -55,4 +55,3 @@ GUISuperfit_/
 
 ## Contact
 
->>>>>>> Stashed changes
