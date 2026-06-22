@@ -1,0 +1,12 @@
+MJD,Mag,Mag_err,band,Instr,source
+58264.9919907,21.5,0.10857362047581294,;;Gaia;G,Astrometric,8
+58297.95,17.0,0.10857362047581294,sdss_g,Paczynski,8
+58401.49,15.9,0.10857362047581294,sdss_g,Leavitt,8
+58410.4789931,15.8,0.2,;;Gaia;G,Astrometric,8
+58410.48,15.8,0.0,;;GAIA;G,Astrometric,5
+58410.554,15.79,0.0,;;GAIA;G,Astrometric,5
+58461.219,17.96,0.0,;;GAIA;G,Astrometric,5
+58461.293,17.95,0.0,;;GAIA;G,Astrometric,5
+58468.5259954,18.17,0.02,;;PS1;w,GPC1,8
+58587.732,20.01,0.0,;;GAIA;G,Astrometric,5
+58587.806,20.14,0.0,;;GAIA;G,Astrometric,5

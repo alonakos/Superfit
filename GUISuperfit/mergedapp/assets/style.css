@@ -1,0 +1,509 @@
+/* ============================================================
+   GUIsuperfit — Complete Theme System
+   Matches reference design: clean navbar with centered tabs,
+   icons right, full dark/light coverage including Plotly bg
+   ============================================================ */
+
+/* ── Colour tokens ──────────────────────────────────────────── */
+:root {
+  --bg:          #f4f6fb;
+  --surface:     #ffffff;
+  --surface2:    #eef0f6;
+  --border:      #dde1ec;
+  --text:        #0f172a;
+  --text-muted:  #64748b;
+  --accent:      #4361ee;
+  --accent-h:    #3451d1;
+  --success:     #0d9488;
+  --danger:      #dc2626;
+  --nav-bg:      #ffffff;
+  --nav-border:  #e2e8f0;
+  --shadow:      0 1px 6px rgba(0,0,0,.08);
+  --radius:      10px;
+  --plot-bg:     #ffffff;
+  --plot-grid:   rgba(0,0,0,.07);
+  --plot-text:   #0f172a;
+}
+
+[data-theme="dark"] {
+  --bg:          #0d0f18;
+  --surface:     #161929;
+  --surface2:    #1e2235;
+  --border:      #2a2f47;
+  --text:        #e2e8f0;
+  --text-muted:  #94a3b8;
+  --accent:      #60a5fa;
+  --accent-h:    #93c5fd;
+  --success:     #2ec4b6;
+  --danger:      #f87171;
+  --nav-bg:      #161929;
+  --nav-border:  #2a2f47;
+  --shadow:      0 2px 16px rgba(0,0,0,.5);
+  --plot-bg:     #161929;
+  --plot-grid:   rgba(255,255,255,.07);
+  --plot-text:   #e2e8f0;
+}
+
+/* ── Reset & base ────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  background: var(--bg) !important;
+}
+
+body {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: background .25s, color .25s;
+  margin: 0;
+}
+
+/* Dash root containers */
+#react-entry-point,
+._dash-loading,
+.dash-renderer,
+#_dash-app-content {
+  background: var(--bg) !important;
+  min-height: 100vh;
+}
+
+/* Bootstrap container overrides */
+.container, .container-fluid {
+  background: transparent !important;
+}
+
+/* ── Navbar — matches reference exactly ─────────────────────── */
+.superfit-navbar {
+  background: var(--nav-bg) !important;
+  border-bottom: 1px solid var(--nav-border) !important;
+  box-shadow: var(--shadow);
+  padding: 0 1.5rem;
+  height: 52px;
+}
+.superfit-navbar .navbar-brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text) !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.superfit-navbar .brand-star {
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+
+/* Center tabs in navbar */
+.superfit-navbar .nav-tabs {
+  border: none !important;
+  height: 52px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.superfit-navbar .nav-tabs .nav-link {
+  color: var(--text-muted) !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  padding: .6rem 1.1rem !important;
+  font-weight: 500;
+  font-size: .9rem;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  transition: color .15s, border-color .15s;
+}
+.superfit-navbar .nav-tabs .nav-link:hover {
+  color: var(--text) !important;
+  background: transparent !important;
+  border-bottom-color: var(--border) !important;
+}
+.superfit-navbar .nav-tabs .nav-link.active {
+  color: var(--accent) !important;
+  background: transparent !important;
+  border-bottom: 2px solid var(--accent) !important;
+  font-weight: 600;
+}
+
+/* ── Theme toggle button ─────────────────────────────────────── */
+.theme-toggle-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+  line-height: 1;
+}
+.theme-toggle-btn:hover {
+  background: var(--border);
+  transform: scale(1.08);
+}
+.theme-toggle-btn:active {
+  transform: scale(.95);
+}
+
+/* ── Page wrapper ────────────────────────────────────────────── */
+.page-wrapper {
+  background: var(--bg);
+  min-height: calc(100vh - 52px);
+  padding: 1.25rem 1.5rem;
+}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card, .sf-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow);
+  color: var(--text) !important;
+}
+.card-header {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  font-weight: 600;
+  padding: .7rem 1rem;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0 !important;
+}
+.card-body { color: var(--text) !important; }
+
+/* Best Fit card — green border like reference */
+.bestfit-card {
+  border: 1.5px solid var(--success) !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface) !important;
+}
+.bestfit-card .card-header {
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--success) !important;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bestfit-label {
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.bestfit-value {
+  font-weight: 600;
+  font-size: .9rem;
+  color: var(--text);
+}
+
+/* ── Upload zone ─────────────────────────────────────────────── */
+.sf-upload {
+  border: 2px dashed var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface2) !important;
+  color: var(--text-muted) !important;
+  text-align: center;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all .2s;
+  font-size: .88rem;
+}
+.sf-upload:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  background: var(--surface) !important;
+}
+.sf-upload a { color: var(--accent); }
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: background .15s, transform .1s !important;
+}
+.btn-primary:hover {
+  background: var(--accent-h) !important;
+  border-color: var(--accent-h) !important;
+  transform: translateY(-1px);
+}
+.btn-secondary {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 8px !important;
+}
+.btn-secondary:hover { background: var(--border) !important; }
+.btn-danger {
+  background: var(--danger) !important;
+  border-color: var(--danger) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+.btn-link { color: var(--accent) !important; }
+.btn-outline-secondary {
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 8px !important;
+}
+.btn-outline-secondary:hover { background: var(--surface2) !important; }
+
+/* View Details button */
+.btn-view-details {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 6px !important;
+  font-size: .82rem;
+  padding: .25rem .7rem;
+}
+
+/* ── Form controls ───────────────────────────────────────────── */
+.form-control,
+.form-select,
+input[type="number"],
+input[type="text"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 7px !important;
+  font-size: .88rem;
+}
+.form-control:focus, input:focus, .form-select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(67,97,238,.12) !important;
+  outline: none;
+}
+label, .form-label { color: var(--text) !important; font-size: .88rem; }
+.input-group-text {
+  background: var(--surface2) !important;
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+  font-size: .82rem;
+}
+
+/* ── Checkboxes ──────────────────────────────────────────────── */
+.form-check-input:checked {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.form-check-label { color: var(--text) !important; font-size: .85rem; }
+.dash-checklist label { color: var(--text) !important; font-size: .85rem; }
+
+/* ── Range slider ────────────────────────────────────────────── */
+.rc-slider-track  { background: var(--accent) !important; }
+.rc-slider-handle {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  box-shadow: none !important;
+}
+.rc-slider-handle:hover, .rc-slider-handle:active {
+  border-color: var(--accent-h) !important;
+  background: var(--accent-h) !important;
+  box-shadow: 0 0 0 4px rgba(67,97,238,.2) !important;
+}
+.rc-slider-rail { background: var(--border) !important; }
+.rc-slider-mark-text { color: var(--text-muted) !important; font-size: .75rem; }
+.rc-slider-tooltip-inner {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-size: .75rem;
+}
+
+/* ── Progress ────────────────────────────────────────────────── */
+.progress {
+  background: var(--surface2) !important;
+  border-radius: 8px !important;
+  width: 100%;
+}
+.progress-bar {
+  background: var(--accent) !important;
+  border-radius: 8px !important;
+  font-size: .82rem !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 2.5rem;
+  transition: width .4s ease !important;
+}
+
+/* ── DataTable ───────────────────────────────────────────────── */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+  font-size: .8rem;
+}
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:hover td {
+  background: var(--surface2) !important;
+}
+/* selected row */
+.dash-table-container .dash-spreadsheet-container
+  .dash-spreadsheet-inner tr.selected td {
+  background: rgba(67,97,238,.08) !important;
+}
+
+/* ── Alerts ──────────────────────────────────────────────────── */
+.alert { border-radius: var(--radius) !important; border: none !important; font-size: .88rem; }
+.alert-info    { background: rgba(67,97,238,.10) !important; color: var(--accent) !important; }
+.alert-success { background: rgba(13,148,136,.10) !important; color: var(--success) !important; }
+.alert-danger  { background: rgba(220,38,38,.10)  !important; color: var(--danger) !important; }
+.alert-warning { background: rgba(234,179,8,.12)  !important; color: #92670f !important; }
+[data-theme="dark"] .alert-warning { color: #fbbf24 !important; }
+
+/* ── Badges ──────────────────────────────────────────────────── */
+.badge { border-radius: 5px !important; font-weight: 600 !important; font-size: .75rem; }
+
+/* ── Misc ────────────────────────────────────────────────────── */
+hr { border-color: var(--border) !important; opacity: 1; margin: .75rem 0; }
+small, .small, .text-muted { color: var(--text-muted) !important; }
+pre {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  border-radius: 8px;
+  padding: .75rem;
+  font-size: .78rem;
+}
+h1,h2,h3,h4,h5,h6 { color: var(--text) !important; }
+
+/* section label */
+.section-label {
+  font-size: .7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* remove number arrows */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--surface2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Navbar tab links (center tabs in reference design) ─────── */
+.nav-tab-link {
+  color: var(--text-muted) !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  padding: .65rem 1.1rem !important;
+  font-weight: 500;
+  font-size: .9rem;
+  height: 52px;
+  display: flex !important;
+  align-items: center;
+  transition: color .15s, border-color .15s;
+  background: transparent !important;
+}
+.nav-tab-link:hover {
+  color: var(--text) !important;
+  background: transparent !important;
+  border-bottom-color: var(--border) !important;
+}
+.nav-tab-link.active {
+  color: var(--accent) !important;
+  background: transparent !important;
+  border-bottom: 2px solid var(--accent) !important;
+  font-weight: 600;
+}
+
+/* ── DARK MODE: force ALL containers dark ────────────────────── */
+/* html/body targeted directly when clientside callback mirrors data-theme onto <html> */
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  background: #0d0f18 !important;
+  color: #e2e8f0 !important;
+}
+
+/* Also apply CSS vars to html so body/children inherit them */
+html[data-theme="dark"] {
+  --bg:         #0d0f18;
+  --surface:    #161929;
+  --surface2:   #1e2235;
+  --border:     #2a2f47;
+  --text:       #e2e8f0;
+  --text-muted: #94a3b8;
+  --accent:     #60a5fa;
+  --accent-h:   #93c5fd;
+  --success:    #2ec4b6;
+  --danger:     #f87171;
+  --nav-bg:     #161929;
+  --nav-border: #2a2f47;
+  --shadow:     0 2px 16px rgba(0,0,0,.5);
+  --plot-bg:    #161929;
+  --plot-grid:  rgba(255,255,255,.07);
+  --plot-text:  #e2e8f0;
+}
+
+/* Legacy selector kept for any descendant overrides that used it */
+[data-theme="dark"] #react-entry-point,
+[data-theme="dark"] ._dash-loading,
+[data-theme="dark"] #_dash-app-content,
+[data-theme="dark"] .dash-renderer {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* target the theme-wrapper itself and all descendants */
+#theme-wrapper {
+  background: var(--bg);
+  min-height: 100vh;
+  color: var(--text);
+}
+[data-theme="dark"] #theme-wrapper {
+  background: #0d0f18 !important;
+}
+
+/* Bootstrap container/row/col must not add white bg */
+[data-theme="dark"] .container,
+[data-theme="dark"] .container-fluid,
+[data-theme="dark"] .row,
+[data-theme="dark"] [class*="col-"] {
+  background: transparent !important;
+}
+
+/* page wrappers Dash injects */
+[data-theme="dark"] ._dash-loading-callback,
+[data-theme="dark"] .dash-loading {
+  background: var(--bg) !important;
+}
+
+/* Navbar dark fix */
+[data-theme="dark"] .superfit-navbar {
+  background: #161929 !important;
+  border-bottom-color: #2a2f47 !important;
+}
+
+/* ── Plotly SVG background — force via CSS (backup to Python) ── */
+[data-theme="dark"] .js-plotly-plot .plotly .bg {
+  fill: #161929 !important;
+}
+[data-theme="dark"] .js-plotly-plot .plotly text {
+  fill: #e2e8f0 !important;
+}

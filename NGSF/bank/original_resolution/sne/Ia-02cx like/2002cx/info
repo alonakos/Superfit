@@ -1,0 +1,7 @@
+## FullType: sub-type of the SN including peculiarities
+## Type: sub-type of the SN. Must be one of [II, IIb, IIn, Ib, Ic, Ic-BL] (following Li et al. 2011 classification scheme)
+## Rich_Type: sub-type of the SN. Must be one of [IIL, IIP, IIb, IIn, Ib, Ic, Ic-BL] (following Richardson et al. 2014 classification scheme)
+#
+Name z RA Dec FullType Type Rich_Type EBV_MW EBV_host
+SN2002cx 0.02396 13:13:49.72 +06:57:31.9 Ia-02cx like Ia Ia ? ?
+- 3 4,13,17,21,23 4,13,17,21,23 - - - ? ?
