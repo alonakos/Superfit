@@ -150,8 +150,7 @@ known_redshift_tab = dbc.Card(
             ],
             className="align-items-center",
         )
-    ),
-    className="mt-1",
+    )
 )
 
 redshift_range_tab = dbc.Card(
@@ -194,15 +193,15 @@ redshift_range_tab = dbc.Card(
             ],
             className="align-items-center",
         )
-    ),
-    className="mt-1",
+    )
 )
 
 z_tabs = dbc.Tabs(
     [
         dbc.Tab(known_redshift_tab, label="Known redshift"),
         dbc.Tab(redshift_range_tab, label="Redshift range"),
-    ]
+    ],
+    className="sf-redshift-tabs",
 )
 
 uploader = html.Div(
@@ -295,7 +294,11 @@ sn_checklist = dbc.Card(
     dbc.CardBody(
         [
             _sn_accordion(),
-            html.Label("Epoch Range Slider"),
+                html.Label(
+                    "Epoch Range",
+                    style={"fontWeight": "bold"},
+                    className="mb-0",
+                    ),
             dcc.RangeSlider(
                 id="sfgui-epoch-range",
                 min=-100,
@@ -360,11 +363,11 @@ sn_checklist = dbc.Card(
                     dbc.Col(
                         dbc.InputGroup(
                             [
-                                dbc.InputGroupText("A_lo"),
+                                dbc.InputGroupText("A_low"),
                                 dbc.Input(
                                     id="sfgui-a-lo",
                                     type="number",
-                                    value=0.0,
+                                    value=-3.0,
                                     step=0.1,
                                     persistence=True,
                                     persistence_type="session",
@@ -573,7 +576,7 @@ def _build_params(
         "minimum_overlap": 0.5,
         "epoch_low": int(epoch_range[0]) if epoch_range else -20,
         "epoch_high": int(epoch_range[1]) if epoch_range else 300,
-        "Alam_low": float(a_lo) if a_lo is not None else 0.0,
+        "Alam_low": float(a_lo) if a_lo is not None else -3.0,
         "Alam_high": float(a_hi) if a_hi is not None else 3.0,
         "Alam_interval": float(a_int) if a_int is not None else 0.1,
         "show_plot": False,

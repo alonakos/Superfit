@@ -506,3 +506,107 @@ html[data-theme="dark"] {
 [data-theme="dark"] .js-plotly-plot .plotly text {
   fill: #e2e8f0 !important;
 }
+
+/* Base in-page tabs. Excludes the top navbar underline tabs. */
+#theme-wrapper .sf-redshift-tabs.nav-tabs,
+#theme-wrapper .sf-redshift-tabs .nav-tabs,
+.sf-redshift-tabs.nav-tabs,
+.sf-redshift-tabs .nav-tabs {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link,
+.sf-redshift-tabs.nav-tabs .nav-link,
+.sf-redshift-tabs .nav-tabs .nav-link {
+  background-color: transparent !important;
+  color: var(--accent) !important;
+  border-color: transparent !important;
+  border-radius: .45rem .45rem 0 0 !important;
+}
+
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link:hover,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link:hover,
+.sf-redshift-tabs.nav-tabs .nav-link:hover,
+.sf-redshift-tabs .nav-tabs .nav-link:hover {
+  background-color: var(--surface2) !important;
+  color: var(--accent-h) !important;
+  border-color: var(--border) var(--border) transparent !important;
+}
+
+/* Active redshift tab — strongest selector, including light and dark. */
+html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
+html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
+body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
+body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
+[data-theme="dark"] #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
+[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
+html[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
+html[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active,
+body[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
+body[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active,
+[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
+[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active {
+  background-color: #161929 !important;
+  color: #e2e8f0 !important;
+  border-color: #2a2f47 #2a2f47 #161929 !important;
+  box-shadow: none !important;
+}
+
+/* Active redshift tab — light mode. */
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
+.sf-redshift-tabs.nav-tabs .nav-link.active,
+.sf-redshift-tabs .nav-tabs .nav-link.active {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) var(--border) var(--surface) !important;
+  box-shadow: none !important;
+}
+
+/* Redshift content panel. */
+#theme-wrapper .sf-redshift-tabs + .tab-content,
+#theme-wrapper .sf-redshift-tabs .tab-content,
+.sf-redshift-tabs + .tab-content,
+.sf-redshift-tabs .tab-content {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-top: 0 !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
+}
+
+html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs + .tab-content,
+html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs .tab-content,
+body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs + .tab-content,
+body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .tab-content,
+[data-theme="dark"] #theme-wrapper .sf-redshift-tabs + .tab-content,
+[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .tab-content,
+html[data-theme="dark"] .sf-redshift-tabs + .tab-content,
+html[data-theme="dark"] .sf-redshift-tabs .tab-content,
+body[data-theme="dark"] .sf-redshift-tabs + .tab-content,
+body[data-theme="dark"] .sf-redshift-tabs .tab-content,
+[data-theme="dark"] .sf-redshift-tabs + .tab-content,
+[data-theme="dark"] .sf-redshift-tabs .tab-content {
+  background-color: #161929 !important;
+  border-color: #2a2f47 !important;
+  color: #e2e8f0 !important;
+}
+
+#theme-wrapper .sf-redshift-tabs + .tab-content .card,
+#theme-wrapper .sf-redshift-tabs .tab-content .card,
+.sf-redshift-tabs + .tab-content .card,
+.sf-redshift-tabs .tab-content .card {
+  margin-top: 0 !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#theme-wrapper .sf-redshift-tabs + .tab-content .card-body,
+#theme-wrapper .sf-redshift-tabs .tab-content .card-body,
+.sf-redshift-tabs + .tab-content .card-body,
+.sf-redshift-tabs .tab-content .card-body {
+  background-color: transparent !important;
+  color: var(--text) !important;
+}
