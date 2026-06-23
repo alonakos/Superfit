@@ -33,6 +33,11 @@ LOWER_LAM = 3000
 UPPER_LAM = 10000
 DEFAULT_EPOCH_RANGE = [-30, 171]
 
+SPECTRUM_PLOT_MARGIN_L = 60
+SPECTRUM_PLOT_MARGIN_R = 20
+SPECTRUM_PLOT_MARGIN_T = 20
+SPECTRUM_PLOT_MARGIN_B = 40
+
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -129,6 +134,24 @@ def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) 
     window = max(3, int(75 / adaptive_step))
     out["flux"] = out["flux"].rolling(window, center=True, min_periods=1).mean()
     return out
+
+
+def _coerce_wave_bounds(bounds):
+    if not bounds:
+        return LOWER_LAM, UPPER_LAM
+    try:
+        mn = int(np.floor(float(bounds["min"])))
+        mx = int(np.ceil(float(bounds["max"])))
+    except (KeyError, TypeError, ValueError):
+        mn, mx = LOWER_LAM, UPPER_LAM
+    if mn >= mx:
+        mn, mx = LOWER_LAM, UPPER_LAM
+    return mn, mx
+
+
+def _wave_marks(mn: int, mx: int):
+    step = max(100, (mx - mn) // 8)
+    return {i: str(i) for i in range(mn, mx + 1, step)}
 
 
 # Layout components
@@ -428,6 +451,10 @@ wavelength_slider = html.Div(
         html.Small(id="sfgui-wave-label"),
     ],
     className="mt-2",
+    style={
+        "paddingLeft": f"{SPECTRUM_PLOT_MARGIN_L}px",
+        "paddingRight": f"{SPECTRUM_PLOT_MARGIN_R}px",
+    },
 )
 
 btn_generate = dbc.Button(
@@ -448,7 +475,6 @@ run_progress_row = html.Div(
             id="sfgui-run-status",
             className="text-muted d-block mb-1",
         ),
-        # Full-width bar — percentage rendered as the bar label inside it
         dbc.Progress(
             id="sfgui-progress",
             value=0,
@@ -695,16 +721,9 @@ def upload_file(contents, filename):
 def init_wave_slider(bounds):
     if not bounds:
         raise PreventUpdate
-    try:
-        mn = int(round(float(bounds["min"])))
-        mx = int(round(float(bounds["max"])))
-    except (KeyError, TypeError, ValueError):
-        mn, mx = LOWER_LAM, UPPER_LAM
-    if mn >= mx:
-        mn, mx = LOWER_LAM, UPPER_LAM
+    mn, mx = _coerce_wave_bounds(bounds)
     val = [mn, mx]
-    step = max(100, (mx - mn) // 8)
-    marks = {i: str(i) for i in range(mn, mx + 1, step)}
+    marks = _wave_marks(mn, mx)
     return mn, mx, val, marks
 
 
@@ -733,32 +752,47 @@ def epoch_label(v):
     Input("sfgui-store-df", "data"),
     Input("sfgui-wave-range", "value"),
     Input("theme-store", "data"),
+    Input("sfgui-store-wave", "data"),
     State("sfgui-store-fn", "data"),
 )
-def update_graph(df_json, wave_range, theme, filename):
+def update_graph(df_json, wave_range, theme, wave_bounds, filename):
     dark = (theme == "dark")
 
     if dark:
         bg, paper = "#1a1d27", "#1a1d27"
         grid, tc  = "#2e3347", "#e2e8f0"
         line_col  = "#4cc9f0"
+        full_col  = "rgba(148, 163, 184, 0.55)"
         leg_bg    = "rgba(26,29,39,0.85)"
     else:
         bg, paper = "white", "white"
         grid, tc  = "rgba(0,0,0,0.1)", "#111111"
-        line_col  = "#4361ee"
+        line_col  = "#000000"
+        full_col  = "rgba(120, 120, 120, 0.55)"
         leg_bg    = "rgba(255,255,255,0.75)"
+
+    domain_lo, domain_hi = _coerce_wave_bounds(wave_bounds)
 
     fig = go.Figure()
     fig.update_layout(
         template="plotly_dark" if dark else "plotly_white",
         paper_bgcolor=paper,
         plot_bgcolor=bg,
-        xaxis=dict(title="Wavelength (Å)", tickformat=".0f",
-                   gridcolor=grid, color=tc),
+        xaxis=dict(
+            title="Wavelength (Å)",
+            tickformat=".0f",
+            gridcolor=grid,
+            color=tc,
+            range=[domain_lo, domain_hi],
+        ),
         yaxis=dict(title="Flux (erg/s/cm²/Å)",
                    gridcolor=grid, color=tc),
-        margin=dict(l=30, r=20, t=20, b=40),
+        margin=dict(
+            l=SPECTRUM_PLOT_MARGIN_L,
+            r=SPECTRUM_PLOT_MARGIN_R,
+            t=SPECTRUM_PLOT_MARGIN_T,
+            b=SPECTRUM_PLOT_MARGIN_B,
+        ),
         showlegend=True,
         legend=dict(
             x=0.02,
@@ -778,25 +812,40 @@ def update_graph(df_json, wave_range, theme, filename):
 
     df = pd.read_json(df_json, orient="split")
 
-    if wave_range and len(wave_range) == 2:
-        lo, hi = float(wave_range[0]), float(wave_range[1])
-        fig.update_xaxes(range=[lo, hi])
-    else:
-        lo, hi = LOWER_LAM, UPPER_LAM
-
-    df_plot = _smooth_resample(df, lo, hi, step=5.0)
-    if df_plot.empty:
+    full_plot = _smooth_resample(df, domain_lo, domain_hi, step=5.0)
+    if full_plot.empty:
         return fig
 
     fig.add_trace(
         go.Scatter(
-            x=df_plot["wavelength"],
-            y=df_plot["flux"],
+            x=full_plot["wavelength"],
+            y=full_plot["flux"],
             mode="lines",
-            name=filename or "spectrum",
-            line=dict(width=2, color=line_col),
+            name=filename,
+            line=dict(width=1.5, color=full_col),
+            hoverinfo="skip",
         )
     )
+
+    if wave_range and len(wave_range) == 2:
+        lo, hi = float(wave_range[0]), float(wave_range[1])
+    else:
+        lo, hi = domain_lo, domain_hi
+
+    lo = max(domain_lo, lo)
+    hi = min(domain_hi, hi)
+
+    selected_plot = _smooth_resample(df, lo, hi, step=5.0)
+    if not selected_plot.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=selected_plot["wavelength"],
+                y=selected_plot["flux"],
+                mode="lines",
+                name="Selected range",
+                line=dict(width=2.5, color=line_col),
+            )
+        )
 
     return fig
 
