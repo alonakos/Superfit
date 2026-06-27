@@ -594,7 +594,7 @@ def _build_params(
         "upper_lam": upper_lam,
         "saving_results_path": f"{RESULTS_DIR}{os.sep}",
         "pkg_dir": str(BASE_DIR),
-        "temp_gal_tr": galaxies or ["E", "S0", "Sa", "Sb", "Sc"],
+        "temp_gal_tr": galaxies or [],
         "temp_sn_tr": sn_types or ["Ia", "Ib", "Ic", "II"],
         "mask_galaxy_lines": False,
         "mask_telluric": False,

@@ -480,7 +480,7 @@ def all_parameter_space(
 
     all_bank_files = [str(x) for x in metadata.dictionary_all_trunc_objects.values()]
 
-    if resolution == 10 or resolution == 30:
+    if resolution == 10 or resolution == 20 or resolution == 30:
 
         for i in range(0, len(all_bank_files)):
             a = all_bank_files[i]
@@ -504,7 +504,7 @@ def all_parameter_space(
             templates_sn_trunc_dict[short_name] = one_sn
             alam_dict[short_name] = Alam(one_sn[:, 0])
 
-    elif parameters.resolution != 30 or parameters.resolution != 10:
+    elif parameters.resolution != 30 or parameters.resolution != 10 or parameters.resolution != 20:
 
         for i in range(0, len(all_bank_files)):
 
