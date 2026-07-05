@@ -8,6 +8,8 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
+from astropy.io import fits
+import io as _io
 
 import dash
 import dash_bootstrap_components as dbc
@@ -233,12 +235,12 @@ uploader = html.Div(
             id="sfgui-upload",
             children=html.Div([
                 html.I(className="ti ti-upload me-2"),
-                "Drag & drop or ", html.A("select spectrum .dat"),
+                "Drag & drop or ", html.A("select spectrum"),
                 html.Br(),
-                html.Small("Supports .dat, .txt", className="text-muted"),
+                html.Small("Supports .dat, .txt, .fits", className="text-muted"),
             ]),
             className="sf-upload",
-            accept=".dat,.txt",
+            accept=".dat,.txt,.fits,.fit",
             multiple=False,
         ),
         html.Small(id="sfgui-upload-status"),
@@ -443,12 +445,28 @@ wavelength_slider = html.Div(
             step=10,
             marks={i: str(i) for i in range(LOWER_LAM, UPPER_LAM + 1, 1000)},
             allowCross=False,
-            updatemode="mouseup",
+            updatemode="drag",
             tooltip={"placement": "bottom", "always_visible": False},
             persistence=True,
             persistence_type="session",
         ),
         html.Small(id="sfgui-wave-label"),
+        html.Div(
+            [
+                html.Label("Binning (Å)",
+                           style={"fontWeight": "bold", "marginRight": "8px", "marginBottom": "0"}),
+                dbc.Input(
+                    id="sfgui-binning",
+                    type="number",
+                    value=10,
+                    min=1,
+                    style={"width": "90px"},
+                    persistence=True,
+                    persistence_type="session",
+                ),
+            ],
+            className="d-flex align-items-center mt-2",
+        ),
     ],
     className="mt-2",
     style={
@@ -464,13 +482,15 @@ btn_generate = dbc.Button(
     className="me-2",
     disabled=True,
 )
-btn_run = dbc.Button("Run Fit", color="primary", id="sfgui-run", disabled=True, className="me-2")
+btn_run  = dbc.Button("Run Fit",  color="primary", id="sfgui-run",
+                      disabled=True, className="me-2")
+btn_stop = dbc.Button("Stop Fit", id="sfgui-stop",
+                      style={"display": "none"}, className="me-2")
 run_progress_row = html.Div(
     id="sfgui-progress-row",
     style={"display": "none"},
     className="mt-2",
     children=[
-        # Status text on its own line above the bar
         html.Small(
             id="sfgui-run-status",
             className="text-muted d-block mb-1",
@@ -527,6 +547,7 @@ layout = html.Div(
                                 html.Div(
                                     [
                                         btn_run,
+                                        btn_stop,
                                         btn_generate,
                                         btn_clear,
                                         download_json,
@@ -571,6 +592,7 @@ def _build_params(
     a_lo,
     a_int,
     wave_range=None,
+    binning=None,
     progress_path=None,
 ):
     if wave_range and len(wave_range) == 2:
@@ -589,13 +611,13 @@ def _build_params(
         "z_range_begin": float(z1) if z1 is not None else 0.0,
         "z_range_end": float(z2) if z2 is not None else 0.1,
         "z_int": float(dz) if dz is not None else 0.01,
-        "resolution": 10,
+        "resolution": int(binning),
         "lower_lam": lower_lam,
         "upper_lam": upper_lam,
         "saving_results_path": f"{RESULTS_DIR}{os.sep}",
         "pkg_dir": str(BASE_DIR),
         "temp_gal_tr": galaxies or [],
-        "temp_sn_tr": sn_types or ["Ia", "Ib", "Ic", "II"],
+        "temp_sn_tr": sn_types or [],
         "mask_galaxy_lines": False,
         "mask_telluric": False,
         "error_spectrum": "sg",
@@ -611,10 +633,57 @@ def _build_params(
         "progress_path": progress_path,
     }
 
+def _parse_fits(data: bytes, filename: str) -> pd.DataFrame:
+    """Parse .fits/.fit spectrum file using astropy.io.fits."""
+    try:
+        with fits.open(_io.BytesIO(data)) as hdul:
+            for ext in hdul:
+                if ext.data is None:
+                    continue
+                d = ext.data
+                if hasattr(d, 'names'):
+                    cols_lower = [c.lower() for c in d.names]
+                    wav_key = next(
+                        (d.names[i] for i, c in enumerate(cols_lower)
+                         if c in ('wave', 'wavelength', 'lambda', 'lam')), None)
+                    flx_key = next(
+                        (d.names[i] for i, c in enumerate(cols_lower)
+                         if c in ('flux', 'flam', 'fnu', 'spec', 'data')), None)
+                    if wav_key and flx_key:
+                        return pd.DataFrame({
+                            "wavelength": d[wav_key].astype(float).ravel(),
+                            "flux":       d[flx_key].astype(float).ravel(),
+                        })
+                elif hasattr(d, 'ndim') and d.ndim >= 1:
+                    hdr   = ext.header
+                    n     = int(d.ravel().shape[0])
+                    crval = float(hdr.get('CRVAL1', 0))
+                    cdelt = float(hdr.get('CDELT1', hdr.get('CD1_1', 1)))
+                    crpix = float(hdr.get('CRPIX1', 1))
+                    wav   = crval + (np.arange(1, n + 1) - crpix) * cdelt
+                    flx   = d.ravel().astype(float)
+                    if len(wav) == len(flx) and len(wav) > 1:
+                        return pd.DataFrame({"wavelength": wav, "flux": flx})
+    except Exception:
+        pass
+    return pd.DataFrame(columns=["wavelength", "flux"])
+
 
 def _parse_dat(contents, filename):
     _, content_string = contents.split(",", 1)
     data = base64.b64decode(content_string)
+    dest = UPLOAD_DIR / filename
+    with open(dest, "wb") as f:
+        f.write(data)
+    if filename.lower().endswith(('.fits', '.fit')):
+        df = _parse_fits(data, filename)
+        if not df.empty:
+            df = (df.replace([float("inf"), float("-inf")], pd.NA)
+                    .dropna()
+                    .sort_values("wavelength")
+                    .groupby("wavelength", as_index=False)["flux"].mean()
+                    .reset_index(drop=True))
+        return df
     text = data.decode("utf-8", errors="ignore")
 
     rows = []
@@ -648,10 +717,6 @@ def _parse_dat(contents, filename):
             .mean()
             .reset_index(drop=True)
         )
-
-    dest = UPLOAD_DIR / filename
-    with open(dest, "wb") as f:
-        f.write(data)
 
     return df
 
@@ -866,6 +931,7 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
     State("sfgui-a-lo", "value"),
     State("sfgui-a-int", "value"),
     State("sfgui-wave-range", "value"),
+    State("sfgui-binning", "value"),
     State("sfgui-store-fn", "data"),
     prevent_initial_call=True,
 )
@@ -882,6 +948,7 @@ def generate_json(
     a_lo,
     a_int,
     wave_range,
+    binning,
     filename,
 ):
     if not n:
@@ -900,6 +967,7 @@ def generate_json(
         a_lo,
         a_int,
         wave_range=wave_range,
+        binning=int(binning),
     )
     text = json.dumps(params, indent=4)
 
@@ -930,7 +998,8 @@ def generate_json(
     Output("sfgui-progress",      "animated"),
     Output("sfgui-progress-row",  "style"),
     Output("sfgui-run-status",    "children"),
-    Output("sfgui-run",           "disabled", allow_duplicate=True),
+    Output("sfgui-run",           "style"),
+    Output("sfgui-stop",          "style"),
     Input("sfgui-run", "n_clicks"),
     State("sfgui-z-known", "value"),
     State("sfgui-z1", "value"),
@@ -943,11 +1012,12 @@ def generate_json(
     State("sfgui-a-lo", "value"),
     State("sfgui-a-int", "value"),
     State("sfgui-wave-range", "value"),
+    State("sfgui-binning", "value"),
     State("sfgui-store-fn", "data"),
     prevent_initial_call=True,
 )
 def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
-              galaxies, a_hi, a_lo, a_int, wave_range, filename):
+              galaxies, a_hi, a_lo, a_int, wave_range, binning, filename):
     if not n:
         raise PreventUpdate
 
@@ -962,10 +1032,13 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         filename, z_known, z1, z2, dz, sn_types, epoch_range,
         galaxies, a_hi, a_lo, a_int,
         wave_range=wave_range,
+        binning=binning,
         progress_path=str(progress_path),
     )
 
-    _row_show = {"display": "block"}
+    _row_show  = {"display": "block"}
+    _run_hide  = {"display": "none"}
+    _stop_show = {"display": "inline-block"}
 
     try:
         stdout_f = open(stdout_path, "w")
@@ -975,7 +1048,8 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
             cwd=str(BASE_DIR), stdout=stdout_f, stderr=stderr_f, text=True,
         )
     except Exception as e:
-        return (None, True, 0, "0%", False, _row_show, f"Error: {e}", False)
+        return (None, True, 0, "0%", False, _row_show, f"Error: {e}",
+                {"display": "inline-block"}, {"display": "none"})
 
     RUNS[run_id] = {
         "proc": proc, "stdout": stdout_f, "stderr": stderr_f,
@@ -991,7 +1065,8 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         0, "0%", True,
         _row_show,
         "Starting fit…",
-        True,
+        _run_hide,
+        _stop_show,
     )
 
 
@@ -1002,7 +1077,8 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
     Output("sfgui-progress-row", "style",    allow_duplicate=True),
     Output("sfgui-run-status",   "children", allow_duplicate=True),
     Output("sfgui-run-timer",    "disabled", allow_duplicate=True),
-    Output("sfgui-run",          "disabled", allow_duplicate=True),
+    Output("sfgui-run",          "style",    allow_duplicate=True),
+    Output("sfgui-stop",         "style",    allow_duplicate=True),
     Output("run-flag",           "data",     allow_duplicate=True),
     Output("sfgui-redirect",     "pathname"),
     Input("sfgui-run-timer",     "n_intervals"),
@@ -1014,15 +1090,17 @@ def poll_fit(n_intervals, state):
         raise PreventUpdate
 
     import re as _re
-    _row_show = {"display": "block"}
-    _row_hide = {"display": "none"}
+    _row_show  = {"display": "block"}
+    _run_show  = {"display": "inline-block"}
+    _run_hide  = {"display": "none"}
+    _stop_show = {"display": "inline-block"}
+    _stop_hide = {"display": "none"}
 
     run_id           = state.get("run_id")
     run              = RUNS.get(run_id)
     percent, message = _read_progress(state.get("progress_path"))
     label            = f"{percent}%"
 
-    # Filter "Fitting grid point X/Y" → show clean message instead
     if message and _re.search(r"[Ff]itting grid point\s+\d+/\d+", message):
         display_msg = "Fitting…"
     else:
@@ -1030,16 +1108,14 @@ def poll_fit(n_intervals, state):
 
     if not run:
         return (percent, label, False, _row_show, f"⚠ {display_msg}",
-                True, False, dash.no_update, dash.no_update)
+                True, _run_show, _stop_hide, dash.no_update, dash.no_update)
 
     proc = run["proc"]
 
     if proc.poll() is None:
-        # Still running — animated bar, status text on left
         return (percent, label, True, _row_show, display_msg,
-                False, True, dash.no_update, dash.no_update)
+                False, _run_hide, _stop_show, dash.no_update, dash.no_update)
 
-    # Process finished
     for key in ("stdout", "stderr"):
         try: run[key].close()
         except Exception: pass
@@ -1048,15 +1124,68 @@ def poll_fit(n_intervals, state):
     if proc.returncode == 0:
         _write_progress(state["progress_path"], 100, "Fit completed")
         return (100, "100%", False, _row_show, "✓ Fit complete — redirecting…",
-                True, False,
+                True, _run_show, _stop_hide,
                 {"action": "run", "ts": time.time()},
                 "/sggui")
 
     try:    err = Path(state.get("stderr_path", "")).read_text()
     except Exception: err = ""
 
-    return (percent, label, False, _row_show, f"✗ Fit failed: {err[:120]}",
-            True, False, None, dash.no_update)
+    err_lines = [l for l in err.strip().splitlines() if l.strip()]
+    if err_lines:
+        summary = err_lines[-1].strip()
+        if len(err_lines) > 1 and not summary[:1].isupper():
+            summary = err_lines[-2].strip() + "  " + summary
+    else:
+        summary = "Unknown error (no output captured)"
+
+    fail_content = html.Div([
+        html.Span(f"✗ Fit failed: {summary[:300]}"),
+        html.Details([
+            html.Summary("View full error log",
+                         style={"cursor": "pointer", "fontSize": ".8rem", "marginTop": "4px"}),
+            html.Pre(err or "(no output captured)",
+                    style={"whiteSpace": "pre-wrap", "fontSize": ".72rem",
+                           "maxHeight": "220px", "overflowY": "auto",
+                           "marginTop": "4px"}),
+        ]) if err else None,
+    ])
+
+    return (percent, label, False, _row_show, fail_content,
+            True, _run_show, _stop_hide, None, dash.no_update)
+
+
+@callback(
+    Output("sfgui-run",          "style",    allow_duplicate=True),
+    Output("sfgui-stop",         "style",    allow_duplicate=True),
+    Output("sfgui-run-timer",    "disabled", allow_duplicate=True),
+    Output("sfgui-progress",     "animated", allow_duplicate=True),
+    Output("sfgui-run-status",   "children", allow_duplicate=True),
+    Input("sfgui-stop",          "n_clicks"),
+    State("sfgui-run-state",     "data"),
+    prevent_initial_call=True,
+)
+def stop_fit(n, state):
+    if not n or not state:
+        raise PreventUpdate
+    run_id = state.get("run_id")
+    run    = RUNS.get(run_id)
+    if run:
+        try:
+            run["proc"].terminate()
+        except Exception:
+            pass
+        for key in ("stdout", "stderr"):
+            try: run[key].close()
+            except Exception: pass
+        RUNS.pop(run_id, None)
+    return (
+        {"display": "inline-block"},
+        {"display": "none"},
+        True,
+        False,
+        "⏹ Fit stopped.",
+    )
 
 
 @callback(
@@ -1085,7 +1214,9 @@ def poll_fit(n_intervals, state):
     Output({"type": "sn-subtypes", "category": ALL}, "style", allow_duplicate=True),
     Output("sfgui-sn-select", "disabled", allow_duplicate=True),
     Output("sfgui-generate", "disabled", allow_duplicate=True),
-    Output("sfgui-run", "disabled", allow_duplicate=True),
+    Output("sfgui-run",   "style",   allow_duplicate=True),
+    Output("sfgui-stop",  "style",   allow_duplicate=True),
+    Output("sfgui-binning", "value", allow_duplicate=True),
     Output("sfgui-wave-range", "value", allow_duplicate=True),
     Output("run-flag", "data", allow_duplicate=True),
     Output("sfgui-run-state", "data", allow_duplicate=True),
@@ -1117,7 +1248,7 @@ def clear_all(n):
         DEFAULT_EPOCH_RANGE,
         [],
         "Select All",
-        3.0, 0.0, 0.1,
+        3.0, -3.0, 0.1,
         None, None, None,
         "",
         "", "", "",
@@ -1126,7 +1257,9 @@ def clear_all(n):
         disabled_styles,
         True,
         True,
-        True,
+        {"display": "inline-block"},
+        {"display": "none"},
+        10,
         [LOWER_LAM, UPPER_LAM],
         {"action": "clear", "ts": time.time()},
         None,
