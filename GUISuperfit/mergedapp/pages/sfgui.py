@@ -19,6 +19,7 @@ from dash.exceptions import PreventUpdate
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from scipy import stats
 
 
 dash.register_page(__name__, path="/sfgui")
@@ -104,38 +105,41 @@ galaxy_options = [
     for g in ["E", "S0", "Sa", "Sb", "Sc", "SB1", "SB2", "SB3", "SB4", "SB5", "SB6"]
 ]
 
-# Smooth resampler
-def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) -> pd.DataFrame:
-    if df.empty:
+# Median-bin display resampler (matches NGSF Header_Binnings.bin_spectrum logic)
+def _bin_for_display(df: pd.DataFrame, lo: float, hi: float, resolution: float) -> pd.DataFrame:
+    if df.empty or resolution is None or resolution <= 0:
         return df
+
     wav = df["wavelength"].to_numpy(dtype=float)
     flx = df["flux"].to_numpy(dtype=float)
 
-    actual_lo = max(lo, wav.min())
-    actual_hi = min(hi, wav.max())
+    actual_lo = max(lo, float(np.nanmin(wav)))
+    actual_hi = min(hi, float(np.nanmax(wav)))
     if actual_lo >= actual_hi:
         return df
 
-    data_range = actual_hi - actual_lo
-    n_points   = len(wav[(wav >= actual_lo) & (wav <= actual_hi)])
-
-    if n_points > 0:
-        native_step = data_range / n_points
-        adaptive_step = max(native_step, data_range / 500)
-    else:
-        adaptive_step = step
-
-    grid = np.arange(actual_lo, actual_hi, adaptive_step)
-    if len(grid) < 2:
+    mask = (wav >= actual_lo) & (wav <= actual_hi)
+    wav, flx = wav[mask], flx[mask]
+    if len(wav) < 2:
         return df
 
-    flx_interp = np.interp(grid, wav, flx)
-    out = pd.DataFrame({"wavelength": grid, "flux": flx_interp})
+    native_step = float(np.nanmedian(np.abs(np.diff(np.sort(wav)))))
+    if native_step > resolution:
+        return pd.DataFrame({"wavelength": wav, "flux": flx})
 
-    # Adaptive window: ~75Å worth of points, min 3
-    window = max(3, int(75 / adaptive_step))
-    out["flux"] = out["flux"].rolling(window, center=True, min_periods=1).mean()
-    return out
+    n_bins = max(1, int(np.floor((actual_hi - actual_lo) / resolution)))
+    flux_bin, bin_edge, _ = stats.binned_statistic(
+        wav, flx, statistic="median", range=(actual_lo, actual_hi), bins=n_bins
+    )
+    bin_wav = (bin_edge[:-1] + bin_edge[1:]) / 2
+    valid = np.isfinite(flux_bin)
+    if not np.any(valid):
+        return df
+
+    return pd.DataFrame({
+        "wavelength": bin_wav[valid],
+        "flux": flux_bin[valid],
+    })
 
 
 def _coerce_wave_bounds(bounds):
@@ -816,11 +820,12 @@ def epoch_label(v):
     Output("sfgui-graph", "figure"),
     Input("sfgui-store-df", "data"),
     Input("sfgui-wave-range", "value"),
+    Input("sfgui-binning", "value"),
     Input("theme-store", "data"),
     Input("sfgui-store-wave", "data"),
     State("sfgui-store-fn", "data"),
 )
-def update_graph(df_json, wave_range, theme, wave_bounds, filename):
+def update_graph(df_json, wave_range, binning, theme, wave_bounds, filename):
     dark = (theme == "dark")
 
     if dark:
@@ -877,7 +882,14 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
 
     df = pd.read_json(df_json, orient="split")
 
-    full_plot = _smooth_resample(df, domain_lo, domain_hi, step=5.0)
+    try:
+        bin_step = float(binning) if binning is not None else 10.0
+    except (TypeError, ValueError):
+        bin_step = 10.0
+    if bin_step <= 0:
+        bin_step = 10.0
+
+    full_plot = _bin_for_display(df, domain_lo, domain_hi, bin_step)
     if full_plot.empty:
         return fig
 
@@ -900,7 +912,7 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
     lo = max(domain_lo, lo)
     hi = min(domain_hi, hi)
 
-    selected_plot = _smooth_resample(df, lo, hi, step=5.0)
+    selected_plot = _bin_for_display(df, lo, hi, bin_step)
     if not selected_plot.empty:
         fig.add_trace(
             go.Scatter(

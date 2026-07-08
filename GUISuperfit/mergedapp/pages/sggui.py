@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,10 @@ DEFAULT_NGSF_DIR = PROJECT_ROOT / "NGSF"
 NGSF_BASE = Path(os.environ.get("NGSF_DIR", str(DEFAULT_NGSF_DIR))).resolve()
 RESULTS_DIR = Path(os.environ.get("NGSF_RESULTS_DIR", str(NGSF_BASE / "results"))).resolve()
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+if str(NGSF_BASE) not in sys.path:
+    sys.path.insert(0, str(NGSF_BASE))
+from NGSF.SF_functions import Alam
 
 RESULT_COLUMNS = [
     "SPECTRUM", "GALAXY", "SN", "CONST_SN", "CONST_GAL",
@@ -124,6 +129,37 @@ def binspec(df: pd.DataFrame, start_w: float, end_w: float, step: float) -> pd.D
     xs = np.arange(start_w, end_w, step, dtype=float)
     ys = np.interp(xs, df["wav"].to_numpy(), df["flux"].to_numpy(), left=np.nan, right=np.nan)
     return pd.DataFrame({"wav": xs, "flux": ys})
+
+
+def apply_sn_reddening(df: pd.DataFrame, z: float, av: float) -> pd.DataFrame:
+    """Normalize, redden, and redshift an SN template (matches sf_class.superfit)."""
+    wav = df["wav"].to_numpy(dtype=float)
+    flux = df["flux"].to_numpy(dtype=float)
+    med = np.nanmedian(flux)
+    if not np.isfinite(med) or med == 0:
+        med = 1.0
+    flux = flux / med
+    a_lam = Alam(wav)
+    redshifted_wav = wav * (z + 1.0)
+    extinct_flux = flux * 10 ** (-0.4 * av * a_lam) / (z + 1.0)
+    return pd.DataFrame({"wav": redshifted_wav, "flux": extinct_flux})
+
+
+def regrid_sn_template(
+    sn_df: pd.DataFrame,
+    target_wav: np.ndarray,
+    z: float,
+    av: float,
+) -> pd.DataFrame:
+    reddened = apply_sn_reddening(sn_df, z, av)
+    interp_flux = np.interp(
+        target_wav,
+        reddened["wav"].to_numpy(),
+        reddened["flux"].to_numpy(),
+        left=np.nan,
+        right=np.nan,
+    )
+    return pd.DataFrame({"wav": target_wav, "flux": interp_flux})
 
 
 def _fmt_float(x, nd=3):
@@ -454,21 +490,35 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
 
     # SN template and normalized template
     sn_template = sn_normed = None
+    z_fit = _safe_float(row.get("Z"))
+    av_fit = _safe_float(row.get("A_v"))
+    if z_fit is None:
+        z_fit = 0.0
+    if av_fit is None:
+        av_fit = 0.0
+
     if sn_path and sn_path.exists():
         sn_data = read_two_col_txt(sn_path)
         if not sn_data.empty:
             const_sn = _safe_float(row.get("CONST_SN"))
-            sn_template = sn_data.copy()
-            if const_sn is not None:
-                sn_template["flux"] = sn_template["flux"] * const_sn
+            target_wav = (
+                obs_plot["wav"].to_numpy(dtype=float)
+                if obs_plot is not None and not obs_plot.empty
+                else sn_data["wav"].to_numpy(dtype=float)
+            )
+            sn_reddened = regrid_sn_template(sn_data, target_wav, z_fit, av_fit)
             if bin_step:
-                sn_template = binspec(
-                    sn_template,
-                    sn_template["wav"].min(),
-                    sn_template["wav"].max(),
+                sn_reddened = binspec(
+                    sn_reddened,
+                    float(np.nanmin(target_wav)),
+                    float(np.nanmax(target_wav)),
                     bin_step,
                 )
-            sn_normed = normalize_flux(sn_template)
+
+            sn_template = sn_reddened.copy()
+            if const_sn is not None:
+                sn_template["flux"] = sn_template["flux"] * const_sn
+            sn_normed = normalize_flux(sn_reddened)
             _record(sn_template["flux"].to_numpy(dtype=float))
             _record(sn_normed["flux"].to_numpy(dtype=float))
 
