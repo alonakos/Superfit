@@ -92,7 +92,7 @@ class Parameters:
         self.n = data["how_many_plots"]
 
         self.iterations = 10
-        if self.resolution == 10 or self.resolution == 30:
+        if self.resolution in (10, 20, 30):
             templates_gal = glob.glob(
                 "bank/binnings/" + str(self.resolution) + "A/gal/*"
             )

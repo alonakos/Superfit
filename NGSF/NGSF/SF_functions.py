@@ -82,10 +82,13 @@ def sn_hg_arrays(
     # Redefine sn and gal by adding a new axis
 
     sn = np.array(sn)
-    gal = np.array(gal)
-
-    gal = gal[:, np.newaxis, :]
     sn = sn[np.newaxis, :, :]
+
+    if len(templates_gal_trunc) == 0:
+        gal = np.zeros((0, 1, len(lam)))
+    else:
+        gal = np.array(gal)
+        gal = gal[:, np.newaxis, :]
 
     return sn, gal
 
@@ -237,47 +240,74 @@ def core(
         alam_dict,
     )
 
-    # Apply linear algebra witchcraft
+    sn_only = len(templates_gal_trunc) == 0
 
-    c = 1 / (
-        np.nansum(sn**2, 2) * np.nansum(gal**2, 2) - np.nansum(gal * sn, 2) ** 2
-    )
-    b = c * (
-        np.nansum(gal**2, 2) * np.nansum(sn * int_obj, 2)
-        - np.nansum(gal * sn, 2) * np.nansum(gal * int_obj, 2)
-    )
-    d = c * (
-        np.nansum(sn**2, 2) * np.nansum(gal * int_obj, 2)
-        - np.nansum(gal * sn, 2) * np.nansum(sn * int_obj, 2)
-    )
+    if sn_only:
+        sn_2d = sn[0]
+        b_vec = np.nansum(sn_2d * int_obj[np.newaxis, :], axis=1) / np.nansum(sn_2d**2, axis=1)
+        b_vec[b_vec < 0] = np.nan
+        b_2d = b_vec[:, np.newaxis]
 
-    b[b < 0] = np.nan
-    d[d < 0] = np.nan
+        resid = (int_obj - b_2d * sn_2d) / sigma
+        valid = np.isnan(resid)
+        times = len(lam) - np.nansum(valid, axis=1)
+        overlap = times / len(lam) > minimum_overlap
 
-    # Add new axis in order to compute chi2
-    sn_b = b[:, :, np.newaxis]
-    gal_d = d[:, :, np.newaxis]
+        chi2 = np.nansum(resid**2, axis=1)
+        chi2[~overlap] = np.inf
 
-    # Obtain number of degrees of freedom
+        reduchi2 = chi2 / (times - 1) ** 2
+        reduchi2 = np.where(reduchi2 == 0, 1e10, reduchi2)
 
-    a = ((int_obj - (sn_b * sn + gal_d * gal)) / sigma) ** 2
-    a = np.isnan(a)
-    times = np.nansum(a, 2)
-    times = len(lam) - times
+        reduchi2_once = chi2 / (times - 1)
+        reduchi2_once = np.where(reduchi2_once == 0, 1e10, reduchi2_once)
 
-    overlap = times / len(lam) > minimum_overlap
+        b = b_vec[np.newaxis, :]
+        d = np.zeros_like(b)
+        reduchi2 = reduchi2[np.newaxis, :]
+        reduchi2_once = reduchi2_once[np.newaxis, :]
+    else:
+        # Apply linear algebra witchcraft
 
-    # Obtain and reduce chi2
-    chi2 = np.nansum(((int_obj - (sn_b * sn + gal_d * gal)) ** 2 / (sigma) ** 2), 2)
+        c = 1 / (
+            np.nansum(sn**2, 2) * np.nansum(gal**2, 2) - np.nansum(gal * sn, 2) ** 2
+        )
+        b = c * (
+            np.nansum(gal**2, 2) * np.nansum(sn * int_obj, 2)
+            - np.nansum(gal * sn, 2) * np.nansum(gal * int_obj, 2)
+        )
+        d = c * (
+            np.nansum(sn**2, 2) * np.nansum(gal * int_obj, 2)
+            - np.nansum(gal * sn, 2) * np.nansum(sn * int_obj, 2)
+        )
 
-    # avoid short overlaps
-    chi2[~overlap] = np.inf
+        b[b < 0] = np.nan
+        d[d < 0] = np.nan
 
-    reduchi2 = chi2 / (times - 2) ** 2
-    reduchi2 = np.where(reduchi2 == 0, 1e10, reduchi2)
+        # Add new axis in order to compute chi2
+        sn_b = b[:, :, np.newaxis]
+        gal_d = d[:, :, np.newaxis]
 
-    reduchi2_once = chi2 / (times - 2)
-    reduchi2_once = np.where(reduchi2_once == 0, 1e10, reduchi2_once)
+        # Obtain number of degrees of freedom
+
+        a = ((int_obj - (sn_b * sn + gal_d * gal)) / sigma) ** 2
+        a = np.isnan(a)
+        times = np.nansum(a, 2)
+        times = len(lam) - times
+
+        overlap = times / len(lam) > minimum_overlap
+
+        # Obtain and reduce chi2
+        chi2 = np.nansum(((int_obj - (sn_b * sn + gal_d * gal)) ** 2 / (sigma) ** 2), 2)
+
+        # avoid short overlaps
+        chi2[~overlap] = np.inf
+
+        reduchi2 = chi2 / (times - 2) ** 2
+        reduchi2 = np.where(reduchi2 == 0, 1e10, reduchi2)
+
+        reduchi2_once = chi2 / (times - 2)
+        reduchi2_once = np.where(reduchi2_once == 0, 1e10, reduchi2_once)
 
     # Flatten the matrix out and obtain indices corresponding values of proportionality constants
     reduchi2_1d = reduchi2.ravel()
@@ -295,22 +325,27 @@ def core(
         redchi2.append(rchi2)
 
         supernova_file = templates_sn_trunc[idx[1]]
-        host_galaxy_file = templates_gal_trunc[idx[0]]
-
-        host_galaxy_file = str(host_galaxy_file)
-        idxx = host_galaxy_file.rfind("/")
-        host_galaxy_file = host_galaxy_file[idxx + 1 :]
-
         bb = b[idx[0]][idx[1]]
+        if sn_only:
+            host_galaxy_file = ""
+            dd = 0.0
+            gal_cont = 0.0
+            sn_cont = 1.0
+        else:
+            host_galaxy_file = templates_gal_trunc[idx[0]]
 
-        dd = d[idx[0]][idx[1]]
-        sn_flux = sn[0, idx[1], :]
-        gal_flux = gal[idx[0], 0, :]
-        sn_cont = bb * np.nanmean(sn_flux * 10 ** (-0.4 * extcon * Alam(lam)))
-        gal_cont = dd * np.nanmean(gal_flux)
-        sum_cont = sn_cont + gal_cont
-        sn_cont = sn_cont / sum_cont
-        gal_cont = gal_cont / sum_cont
+            host_galaxy_file = str(host_galaxy_file)
+            idxx = host_galaxy_file.rfind("/")
+            host_galaxy_file = host_galaxy_file[idxx + 1 :]
+
+            dd = d[idx[0]][idx[1]]
+            sn_flux = sn[0, idx[1], :]
+            gal_flux = gal[idx[0], 0, :]
+            sn_cont = bb * np.nanmean(sn_flux * 10 ** (-0.4 * extcon * Alam(lam)))
+            gal_cont = dd * np.nanmean(gal_flux)
+            sum_cont = sn_cont + gal_cont
+            sn_cont = sn_cont / sum_cont
+            gal_cont = gal_cont / sum_cont
 
         ii = supernova_file.rfind(":")
         the_phase = supernova_file[ii + 1 : -1]
