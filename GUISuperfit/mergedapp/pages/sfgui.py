@@ -103,39 +103,23 @@ galaxy_options = [
     {"label": g, "value": g}
     for g in ["E", "S0", "Sa", "Sb", "Sc", "SB1", "SB2", "SB3", "SB4", "SB5", "SB6"]
 ]
+def _raw_spectrum(
+    df: pd.DataFrame,
+    lo: float,
+    hi: float,
+) -> pd.DataFrame:
 
-# Smooth resampler
-def _smooth_resample(df: pd.DataFrame, lo: float, hi: float, step: float = 5.0) -> pd.DataFrame:
     if df.empty:
-        return df
-    wav = df["wavelength"].to_numpy(dtype=float)
-    flx = df["flux"].to_numpy(dtype=float)
+        return pd.DataFrame(columns=["wavelength", "flux"])
 
-    actual_lo = max(lo, wav.min())
-    actual_hi = min(hi, wav.max())
-    if actual_lo >= actual_hi:
-        return df
-
-    data_range = actual_hi - actual_lo
-    n_points   = len(wav[(wav >= actual_lo) & (wav <= actual_hi)])
-
-    if n_points > 0:
-        native_step = data_range / n_points
-        adaptive_step = max(native_step, data_range / 500)
-    else:
-        adaptive_step = step
-
-    grid = np.arange(actual_lo, actual_hi, adaptive_step)
-    if len(grid) < 2:
-        return df
-
-    flx_interp = np.interp(grid, wav, flx)
-    out = pd.DataFrame({"wavelength": grid, "flux": flx_interp})
-
-    # Adaptive window: ~75Å worth of points, min 3
-    window = max(3, int(75 / adaptive_step))
-    out["flux"] = out["flux"].rolling(window, center=True, min_periods=1).mean()
-    return out
+    return (
+        df.loc[
+            (df["wavelength"] >= float(lo))
+            & (df["wavelength"] <= float(hi)),
+            ["wavelength", "flux"],
+        ]
+        .reset_index(drop=True)
+    )
 
 
 def _coerce_wave_bounds(bounds):
@@ -423,6 +407,24 @@ sn_checklist = dbc.Card(
                 ],
                 className="mb-2",
             ),
+            html.Hr(),
+            html.Div(
+            [
+                html.Label("Resolution",
+                           style={"fontWeight": "bold", "marginRight": "8px", "marginBottom": "0"}),
+                dbc.Input(
+                    id="sfgui-resolution",
+                    type="number",
+                    value=10,
+                    min=1,
+                    step=5,
+                    style={"width": "90px"},
+                    persistence=True,
+                    persistence_type="memory",
+                ),
+            ],
+            className="d-flex align-items-center mt-2",
+        ),
         ]
     ),
     className="mt-2",
@@ -451,22 +453,6 @@ wavelength_slider = html.Div(
             persistence_type="session",
         ),
         html.Small(id="sfgui-wave-label"),
-        html.Div(
-            [
-                html.Label("Binning (Å)",
-                           style={"fontWeight": "bold", "marginRight": "8px", "marginBottom": "0"}),
-                dbc.Input(
-                    id="sfgui-binning",
-                    type="number",
-                    value=10,
-                    min=1,
-                    style={"width": "90px"},
-                    persistence=True,
-                    persistence_type="session",
-                ),
-            ],
-            className="d-flex align-items-center mt-2",
-        ),
     ],
     className="mt-2",
     style={
@@ -579,6 +565,18 @@ layout = html.Div(
 )
 
 
+def _safe_resolution(value, default=10):
+    try:
+        resolution = float(value)
+    except (TypeError, ValueError):
+        return int(default)
+
+    if not np.isfinite(resolution) or resolution <= 0:
+        return int(default)
+
+    return max(1, int(round(resolution)))
+
+
 def _build_params(
     filename,
     z_known,
@@ -592,7 +590,7 @@ def _build_params(
     a_lo,
     a_int,
     wave_range=None,
-    binning=None,
+    resolution=10,
     progress_path=None,
 ):
     if wave_range and len(wave_range) == 2:
@@ -611,7 +609,7 @@ def _build_params(
         "z_range_begin": float(z1) if z1 is not None else 0.0,
         "z_range_end": float(z2) if z2 is not None else 0.1,
         "z_int": float(dz) if dz is not None else 0.01,
-        "resolution": int(binning),
+        "resolution": _safe_resolution(resolution),
         "lower_lam": lower_lam,
         "upper_lam": upper_lam,
         "saving_results_path": f"{RESULTS_DIR}{os.sep}",
@@ -678,11 +676,11 @@ def _parse_dat(contents, filename):
     if filename.lower().endswith(('.fits', '.fit')):
         df = _parse_fits(data, filename)
         if not df.empty:
-            df = (df.replace([float("inf"), float("-inf")], pd.NA)
-                    .dropna()
-                    .sort_values("wavelength")
-                    .groupby("wavelength", as_index=False)["flux"].mean()
-                    .reset_index(drop=True))
+            df = (
+                df.replace([float("inf"), float("-inf")], pd.NA)
+                .dropna(subset=["wavelength", "flux"])
+                .reset_index(drop=True)
+            )
         return df
     text = data.decode("utf-8", errors="ignore")
 
@@ -709,12 +707,12 @@ def _parse_dat(contents, filename):
     df = pd.DataFrame(rows, columns=["wavelength", "flux"])
 
     if not df.empty:
+        # Keep every uploaded text-file sample in its original order.
+        # Only invalid values are removed; no sorting or averaging;
+        # interpolation, or smoothing is applied.
         df = (
             df.replace([float("inf"), float("-inf")], pd.NA)
-            .dropna()
-            .sort_values("wavelength")
-            .groupby("wavelength", as_index=False)["flux"]
-            .mean()
+            .dropna(subset=["wavelength", "flux"])
             .reset_index(drop=True)
         )
 
@@ -746,11 +744,31 @@ def upload_file(contents, filename):
     disabled_list, disabled_styles = _sn_state(disabled=True)
 
     if not filename:
-        return "No file selected", None, None, None, True, True, disabled_list, disabled_styles, True
+        return (
+            "No file selected",
+            None,
+            None,
+            None,
+            True,
+            True,
+            disabled_list,
+            disabled_styles,
+            True,
+        )
 
     df = _parse_dat(contents, filename)
     if df.empty:
-        return "File parsed as empty", None, None, None, True, True, disabled_list, disabled_styles, True
+        return (
+            "File parsed as empty",
+            None,
+            None,
+            None,
+            True,
+            True,
+            disabled_list,
+            disabled_styles,
+            True,
+        )
 
     wmin = float(df["wavelength"].min())
     wmax = float(df["wavelength"].max())
@@ -765,7 +783,10 @@ def upload_file(contents, filename):
     return (
         status,
         filename,
-        df.to_json(orient="split", double_precision=15),
+        {
+            "wavelength": df["wavelength"].astype(float).tolist(),
+            "flux": df["flux"].astype(float).tolist(),
+        },
         {"min": wmin, "max": wmax},
         False,
         False,
@@ -875,9 +896,20 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
     if not df_json:
         return fig
 
-    df = pd.read_json(df_json, orient="split")
+    if isinstance(df_json, dict):
+        df = pd.DataFrame({
+            "wavelength": df_json.get("wavelength", []),
+            "flux": df_json.get("flux", []),
+        })
+    else:
+        df = pd.read_json(io.StringIO(df_json), orient="split")
 
-    full_plot = _smooth_resample(df, domain_lo, domain_hi, step=5.0)
+    full_plot = _raw_spectrum(
+        df,
+        domain_lo,
+        domain_hi,
+    )
+
     if full_plot.empty:
         return fig
 
@@ -899,8 +931,10 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
 
     lo = max(domain_lo, lo)
     hi = min(domain_hi, hi)
-
-    selected_plot = _smooth_resample(df, lo, hi, step=5.0)
+    selected_plot = full_plot.loc[
+        (full_plot["wavelength"] >= lo)
+        & (full_plot["wavelength"] <= hi)
+    ].copy()
     if not selected_plot.empty:
         fig.add_trace(
             go.Scatter(
@@ -931,7 +965,7 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
     State("sfgui-a-lo", "value"),
     State("sfgui-a-int", "value"),
     State("sfgui-wave-range", "value"),
-    State("sfgui-binning", "value"),
+    State("sfgui-resolution", "value"),
     State("sfgui-store-fn", "data"),
     prevent_initial_call=True,
 )
@@ -948,7 +982,7 @@ def generate_json(
     a_lo,
     a_int,
     wave_range,
-    binning,
+    resolution,
     filename,
 ):
     if not n:
@@ -967,7 +1001,7 @@ def generate_json(
         a_lo,
         a_int,
         wave_range=wave_range,
-        binning=int(binning),
+        resolution=resolution,
     )
     text = json.dumps(params, indent=4)
 
@@ -1012,12 +1046,12 @@ def generate_json(
     State("sfgui-a-lo", "value"),
     State("sfgui-a-int", "value"),
     State("sfgui-wave-range", "value"),
-    State("sfgui-binning", "value"),
+    State("sfgui-resolution", "value"),
     State("sfgui-store-fn", "data"),
     prevent_initial_call=True,
 )
 def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
-              galaxies, a_hi, a_lo, a_int, wave_range, binning, filename):
+              galaxies, a_hi, a_lo, a_int, wave_range, resolution, filename):
     if not n:
         raise PreventUpdate
 
@@ -1032,7 +1066,7 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         filename, z_known, z1, z2, dz, sn_types, epoch_range,
         galaxies, a_hi, a_lo, a_int,
         wave_range=wave_range,
-        binning=binning,
+        resolution=resolution,
         progress_path=str(progress_path),
     )
 
@@ -1107,7 +1141,7 @@ def poll_fit(n_intervals, state):
         display_msg = message or "Running…"
 
     if not run:
-        return (percent, label, False, _row_show, f"⚠ {display_msg}",
+        return (percent, label, False, _row_show, f" {display_msg}",
                 True, _run_show, _stop_hide, dash.no_update, dash.no_update)
 
     proc = run["proc"]
@@ -1216,7 +1250,7 @@ def stop_fit(n, state):
     Output("sfgui-generate", "disabled", allow_duplicate=True),
     Output("sfgui-run",   "style",   allow_duplicate=True),
     Output("sfgui-stop",  "style",   allow_duplicate=True),
-    Output("sfgui-binning", "value", allow_duplicate=True),
+    Output("sfgui-resolution", "value", allow_duplicate=True),
     Output("sfgui-wave-range", "value", allow_duplicate=True),
     Output("run-flag", "data", allow_duplicate=True),
     Output("sfgui-run-state", "data", allow_duplicate=True),

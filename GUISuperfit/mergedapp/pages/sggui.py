@@ -7,7 +7,6 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, dash_table, Input, Output, State, callback
 import plotly.graph_objs as go
-
 dash.register_page(__name__, path="/sggui")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -335,8 +334,10 @@ def load_results(run_flag):
         df = df.sort_values(by=sort_cols, ascending=True, kind="mergesort")
 
     table_cols = [c for c in df.columns if c != "sn_name"]
+    table_df = df[table_cols].copy()
+    table_df = table_df.round(3)
     columns = [{"name": c, "id": c} for c in table_cols]
-    data = df[table_cols].to_dict("records")
+    data = table_df.to_dict("records")
     selected = [0] if data else []
 
     return df.to_json(orient="split"), str(latest), data, columns, selected
