@@ -540,6 +540,13 @@ layout = html.Div(
                                     ],
                                     className="mt-2",
                                 ),
+                                dbc.Alert(
+                                    "At least one supernova type is required.",
+                                    id="sfgui-sn-error",
+                                    color="danger",
+                                    is_open=False,
+                                    className="mt-2 mb-0",
+                                ),
                                 run_progress_row,
                                 dbc.Card(
                                     [
@@ -1034,6 +1041,7 @@ def generate_json(
     Output("sfgui-run-status",    "children"),
     Output("sfgui-run",           "style"),
     Output("sfgui-stop",          "style"),
+    Output("sfgui-sn-error",      "is_open"),
     Input("sfgui-run", "n_clicks"),
     State("sfgui-z-known", "value"),
     State("sfgui-z1", "value"),
@@ -1054,6 +1062,20 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
               galaxies, a_hi, a_lo, a_int, wave_range, resolution, filename):
     if not n:
         raise PreventUpdate
+
+    if not sn_types:
+        return (
+            None,
+            True,
+            0,
+            "",
+            False,
+            {"display": "none"},
+            "",
+            {"display": "inline-block"},
+            {"display": "none"},
+            True,
+        )
 
     run_id        = str(uuid.uuid4())
     progress_path = RESULTS_DIR / f"progress_{run_id}.json"
@@ -1083,7 +1105,7 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         )
     except Exception as e:
         return (None, True, 0, "0%", False, _row_show, f"Error: {e}",
-                {"display": "inline-block"}, {"display": "none"})
+                {"display": "inline-block"}, {"display": "none"}, False)
 
     RUNS[run_id] = {
         "proc": proc, "stdout": stdout_f, "stderr": stderr_f,
@@ -1101,6 +1123,7 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         "Starting fit…",
         _run_hide,
         _stop_show,
+        False,
     )
 
 
@@ -1259,6 +1282,7 @@ def stop_fit(n, state):
     Output("sfgui-progress", "label",         allow_duplicate=True),
     Output("sfgui-progress-row", "style",     allow_duplicate=True),
     Output("sfgui-redirect", "pathname",      allow_duplicate=True),
+    Output("sfgui-sn-error", "is_open",       allow_duplicate=True),
     Input("sfgui-clear", "n_clicks"),
     prevent_initial_call=True,
 )
@@ -1302,6 +1326,7 @@ def clear_all(n):
         "",
         {"display": "none"},
         dash.no_update,
+        False,
     )
 
 

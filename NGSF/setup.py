@@ -91,7 +91,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/x-rst",
     url="https://github.com/samanthagoldwasser25/NGSF",
-    author="Samantha Goldwasser, Ofer Yaron, Avner Sass, Ido Irani, Avishay Gal-Yam, D. Andrew Howell",
+    author="Samantha Goldwasser, Ofer Yaron, Avner Sass, Ido Irani, Avishay Gal-Yam, D. Andrew Howell, Alyona Kosobokova",
     author_email="ofer.yaron@weizmann.ac.il ",
     license="MIT",
     version=VERSION,
