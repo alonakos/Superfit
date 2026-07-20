@@ -122,6 +122,43 @@ def _raw_spectrum(
     )
 
 
+def _bin_spectrum(
+    df: pd.DataFrame,
+    start_w: float,
+    end_w: float,
+    step: float,
+) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["wavelength", "flux"])
+
+    ordered = (
+        df[["wavelength", "flux"]]
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+        .sort_values("wavelength")
+        .reset_index(drop=True)
+    )
+    if ordered.empty:
+        return pd.DataFrame(columns=["wavelength", "flux"])
+
+    xs = np.arange(float(start_w), float(end_w), float(step), dtype=float)
+    if xs.size == 0:
+        return pd.DataFrame(columns=["wavelength", "flux"])
+
+    ys = np.interp(
+        xs,
+        ordered["wavelength"].to_numpy(dtype=float),
+        ordered["flux"].to_numpy(dtype=float),
+        left=np.nan,
+        right=np.nan,
+    )
+    return (
+        pd.DataFrame({"wavelength": xs, "flux": ys})
+        .dropna()
+        .reset_index(drop=True)
+    )
+
+
 def _coerce_wave_bounds(bounds):
     if not bounds:
         return LOWER_LAM, UPPER_LAM
@@ -407,24 +444,6 @@ sn_checklist = dbc.Card(
                 ],
                 className="mb-2",
             ),
-            html.Hr(),
-            html.Div(
-            [
-                html.Label("Resolution",
-                           style={"fontWeight": "bold", "marginRight": "8px", "marginBottom": "0"}),
-                dbc.Input(
-                    id="sfgui-resolution",
-                    type="number",
-                    value=10,
-                    min=1,
-                    step=5,
-                    style={"width": "90px"},
-                    persistence=True,
-                    persistence_type="memory",
-                ),
-            ],
-            className="d-flex align-items-center mt-2",
-        ),
         ]
     ),
     className="mt-2",
@@ -434,6 +453,34 @@ spectrum_graph = dcc.Graph(
     id="sfgui-graph",
     config={"displayModeBar": False, "responsive": True},
     style={"height": "60vh"},
+)
+
+resolution_control = html.Div(
+    [
+        html.Label(
+            "Binning (Å)",
+            style={
+                "fontWeight": "bold",
+                "marginRight": "8px",
+                "marginBottom": "0",
+            },
+        ),
+        dbc.Input(
+            id="sfgui-resolution",
+            type="number",
+            value=10,
+            min=1,
+            step=5,
+            style={"width": "90px"},
+            persistence=True,
+            persistence_type="memory",
+        ),
+    ],
+    className="d-flex align-items-center mt-2",
+    style={
+        "paddingLeft": f"{SPECTRUM_PLOT_MARGIN_L}px",
+        "paddingRight": f"{SPECTRUM_PLOT_MARGIN_R}px",
+    },
 )
 
 wavelength_slider = html.Div(
@@ -559,7 +606,7 @@ layout = html.Div(
                             md=5,
                         ),
                         dbc.Col(
-                            dbc.Card(dbc.CardBody([spectrum_graph, wavelength_slider])),
+                            dbc.Card(dbc.CardBody([spectrum_graph, resolution_control, wavelength_slider])),
                             md=7,
                         ),
                     ],
@@ -846,9 +893,10 @@ def epoch_label(v):
     Input("sfgui-wave-range", "value"),
     Input("theme-store", "data"),
     Input("sfgui-store-wave", "data"),
+    Input("sfgui-resolution", "value"),
     State("sfgui-store-fn", "data"),
 )
-def update_graph(df_json, wave_range, theme, wave_bounds, filename):
+def update_graph(df_json, wave_range, theme, wave_bounds, resolution, filename):
     dark = (theme == "dark")
 
     if dark:
@@ -915,6 +963,17 @@ def update_graph(df_json, wave_range, theme, wave_bounds, filename):
         df,
         domain_lo,
         domain_hi,
+    )
+
+    if full_plot.empty:
+        return fig
+
+    bin_step = _safe_resolution(resolution)
+    full_plot = _bin_spectrum(
+        full_plot,
+        full_plot["wavelength"].min(),
+        full_plot["wavelength"].max(),
+        bin_step,
     )
 
     if full_plot.empty:
