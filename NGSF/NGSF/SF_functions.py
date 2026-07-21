@@ -82,7 +82,7 @@ def sn_hg_arrays(
     # Redefine sn and gal by adding a new axis
 
     sn = np.array(sn)
-    gal = np.array(gal)
+    gal = np.array(gal) if gal else np.zeros((1, len(lam)))
 
     gal = gal[:, np.newaxis, :]
     sn = sn[np.newaxis, :, :]
@@ -238,18 +238,23 @@ def core(
     )
 
     # Apply linear algebra witchcraft
+    sn_only = len(templates_gal_trunc) == 0
 
-    c = 1 / (
-        np.nansum(sn**2, 2) * np.nansum(gal**2, 2) - np.nansum(gal * sn, 2) ** 2
-    )
-    b = c * (
-        np.nansum(gal**2, 2) * np.nansum(sn * int_obj, 2)
-        - np.nansum(gal * sn, 2) * np.nansum(gal * int_obj, 2)
-    )
-    d = c * (
-        np.nansum(sn**2, 2) * np.nansum(gal * int_obj, 2)
-        - np.nansum(gal * sn, 2) * np.nansum(sn * int_obj, 2)
-    )
+    if sn_only:
+        b = np.nansum(sn * int_obj, 2) / np.nansum(sn**2, 2)
+        d = np.zeros_like(b)
+    else:
+        c = 1 / (
+            np.nansum(sn**2, 2) * np.nansum(gal**2, 2) - np.nansum(gal * sn, 2) ** 2
+        )
+        b = c * (
+            np.nansum(gal**2, 2) * np.nansum(sn * int_obj, 2)
+            - np.nansum(gal * sn, 2) * np.nansum(gal * int_obj, 2)
+        )
+        d = c * (
+            np.nansum(sn**2, 2) * np.nansum(gal * int_obj, 2)
+            - np.nansum(gal * sn, 2) * np.nansum(sn * int_obj, 2)
+        )
 
     b[b < 0] = np.nan
     d[d < 0] = np.nan
@@ -273,10 +278,11 @@ def core(
     # avoid short overlaps
     chi2[~overlap] = np.inf
 
-    reduchi2 = chi2 / (times - 2) ** 2
+    dof = 1 if sn_only else 2
+    reduchi2 = chi2 / (times - dof) ** 2
     reduchi2 = np.where(reduchi2 == 0, 1e10, reduchi2)
 
-    reduchi2_once = chi2 / (times - 2)
+    reduchi2_once = chi2 / (times - dof)
     reduchi2_once = np.where(reduchi2_once == 0, 1e10, reduchi2_once)
 
     # Flatten the matrix out and obtain indices corresponding values of proportionality constants
@@ -295,7 +301,7 @@ def core(
         redchi2.append(rchi2)
 
         supernova_file = templates_sn_trunc[idx[1]]
-        host_galaxy_file = templates_gal_trunc[idx[0]]
+        host_galaxy_file = "None" if sn_only else templates_gal_trunc[idx[0]]
 
         host_galaxy_file = str(host_galaxy_file)
         idxx = host_galaxy_file.rfind("/")

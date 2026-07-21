@@ -315,28 +315,28 @@ class Superfit:
                int_obj = self.int_obj
 
                sn_name = "bank/binnings/10A/sne/" + subtype + "/" + sn_best_fullname
-               hg_name = "bank/binnings/10A/gal/" + hg_name
+               has_galaxy = str(hg_name).lower() not in ("none", "nan", "")
 
                nova = kill_header(sn_name)
                nova[:, 1] = nova[:, 1] / np.nanmedian(nova[:, 1])
 
-               host = np.loadtxt(hg_name)
-               host[:, 1] = host[:, 1] / np.nanmedian(host[:, 1])
-
-               # Interpolate supernova and host galaxy
                redshifted_nova = nova[:, 0] * (z + 1)
                extinct_nova = nova[:, 1] * 10 ** (-0.4 * extmag * Alam(nova[:, 0])) / (z + 1)
-
-               reshifted_host = host[:, 0] * (z + 1)
-               reshifted_hostf = host[:, 1] / (z + 1)
-
                nova_int = interpolate.interp1d(
                     redshifted_nova, extinct_nova, bounds_error=False, fill_value="nan"
                )
-               host_int = interpolate.interp1d(
-                    reshifted_host, reshifted_hostf, bounds_error=False, fill_value="nan"
-               )
-               host_nova = bb * nova_int(parameters.lam) + dd * host_int(parameters.lam)
+               host_nova = bb * nova_int(parameters.lam)
+
+               if has_galaxy:
+                    hg_name = "bank/binnings/10A/gal/" + hg_name
+                    host = np.loadtxt(hg_name)
+                    host[:, 1] = host[:, 1] / np.nanmedian(host[:, 1])
+                    reshifted_host = host[:, 0] * (z + 1)
+                    reshifted_hostf = host[:, 1] / (z + 1)
+                    host_int = interpolate.interp1d(
+                         reshifted_host, reshifted_hostf, bounds_error=False, fill_value="nan"
+                    )
+                    host_nova = host_nova + dd * host_int(parameters.lam)
 
                sn_type = short_name[: short_name.find("/")]
                hg_name = hg_name[hg_name.rfind("/") + 1 :]
