@@ -7,6 +7,9 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, dash_table, Input, Output, State, callback
 import plotly.graph_objs as go
+import extinction
+from extinction import apply
+
 dash.register_page(__name__, path="/sggui")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -117,6 +120,58 @@ def normalize_flux(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["flux"] = out["flux"] / med
     return out
+
+
+def alam(wavelength, A_v=1.0, R_v=3.1):
+    wavelength = np.asarray(wavelength, dtype=float)
+    unit_flux = np.ones(wavelength.size, dtype=float)
+    return np.asarray(
+        apply(extinction.ccm89(wavelength, A_v, R_v), unit_flux),
+        dtype=float,
+    )
+
+
+def _fit_grid_component(
+    df: pd.DataFrame,
+    target_wavelength,
+    redshift: float,
+    scale: float,
+    extinction_magnitude=None,
+) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["wav", "flux"])
+
+    z_factor = 1.0 + float(redshift)
+    if not np.isfinite(z_factor) or z_factor <= 0:
+        z_factor = 1.0
+
+    normalized = normalize_flux(df)
+    rest_wavelength = normalized["wav"].to_numpy(dtype=float)
+    transformed_flux = normalized["flux"].to_numpy(dtype=float)
+
+    if extinction_magnitude is not None:
+        transformed_flux = transformed_flux * 10.0 ** (
+            -0.4 * float(extinction_magnitude) * alam(rest_wavelength)
+        )
+
+    observed_wavelength = rest_wavelength * z_factor
+    observed_flux = transformed_flux / z_factor
+    target_wavelength = np.asarray(target_wavelength, dtype=float)
+
+    interpolated_flux = np.interp(
+        target_wavelength,
+        observed_wavelength,
+        observed_flux,
+        left=np.nan,
+        right=np.nan,
+    )
+
+    return pd.DataFrame(
+        {
+            "wav": target_wavelength,
+            "flux": float(scale) * interpolated_flux,
+        }
+    )
 
 
 def binspec(df: pd.DataFrame, start_w: float, end_w: float, step: float) -> pd.DataFrame:
@@ -349,13 +404,13 @@ def load_results(run_flag):
     Input("sggui-table", "selected_rows"),
     Input("sggui-plots", "value"),
     Input("sggui-bin", "value"),
-    Input("theme-store", "data"),   # NEW: theme toggle input
+    Input("theme-store", "data"),
     State("sggui-table", "data"),
     State("sggui-results-data", "data"),
     State("sggui-last-figure", "data"),
 )
 def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, stored_fig):
-    dark = (theme == "dark")
+    dark = theme == "dark"
 
     if not sel_rows or not table_data or not json_data:
         fig, fig_dict = _fallback_figure(stored_fig, dark)
@@ -365,7 +420,10 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
         plot_flags = _ALL_PLOT_VALUES
 
     df_all = pd.read_json(json_data, orient="split")
-    row = df_all.iloc[sel_rows[0]]
+    selected_index = sel_rows[0]
+    if selected_index >= len(df_all):
+        selected_index = 0
+    row = df_all.iloc[selected_index]
 
     fig = _base_figure(dark)
     y_extents = []
@@ -378,6 +436,25 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
         if arr.size:
             y_extents.extend([float(arr.min()), float(arr.max())])
 
+    def _add_trace(key, frame, name):
+        nonlocal traces_added
+        if key not in plot_flags or frame is None or frame.empty:
+            return
+        clean = frame.replace([np.inf, -np.inf], np.nan).dropna()
+        if clean.empty:
+            return
+        fig.add_trace(
+            go.Scatter(
+                x=clean["wav"],
+                y=clean["flux"],
+                mode="lines",
+                name=name,
+                line=_line_style(key, dark),
+            )
+        )
+        _record(clean["flux"].to_numpy(dtype=float))
+        traces_added = True
+
     obs_path = _under_root(RESULTS_DIR, row.get("SPECTRUM"), NGSF_BASE)
     gal_rel = None if pd.isna(row.get("GALAXY")) else str(row.get("GALAXY"))
     gal_path = (
@@ -386,18 +463,29 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
     )
     sn_path = _under_root(NGSF_BASE, row.get("sn_name"))
 
+    redshift = _safe_float(row.get("Z"))
+    redshift = 0.0 if redshift is None else redshift
+
+    extinction_magnitude = _safe_float(row.get("A_v"))
+    extinction_magnitude = 0.0 if extinction_magnitude is None else extinction_magnitude
+
+    const_sn = _safe_float(row.get("CONST_SN"))
+    const_sn = 1.0 if const_sn is None else const_sn
+
+    const_gal = _safe_float(row.get("CONST_GAL"))
+    const_gal = 1.0 if const_gal is None else const_gal
+
     bin_step = _safe_float(bin_size)
     if bin_step is not None and bin_step <= 0:
         bin_step = None
 
     traces_added = False
 
-    # Observation
-    obs_data = obs_plot = None
+    obs_plot = None
     if obs_path and obs_path.exists():
         obs_data = read_two_col_txt(obs_path)
         if not obs_data.empty:
-            obs_plot = obs_data.copy()
+            obs_plot = normalize_flux(obs_data)
             if bin_step:
                 obs_plot = binspec(
                     obs_plot,
@@ -405,63 +493,28 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
                     obs_plot["wav"].max(),
                     bin_step,
                 )
-            _record(obs_plot["flux"].to_numpy(dtype=float))
-            if "obs" in plot_flags:
-                fig.add_trace(
-                    go.Scatter(
-                        x=obs_plot["wav"],
-                        y=obs_plot["flux"],
-                        mode="lines",
-                        name="Observation",
-                        line=_line_style("obs", dark),
-                    )
-                )
-                traces_added = True
+            obs_plot = obs_plot.replace([np.inf, -np.inf], np.nan).dropna()
 
-    # Galaxy template scaled by CONST_GAL
+    if obs_plot is None or obs_plot.empty:
+        fig, fig_dict = _fallback_figure(stored_fig, dark)
+        return fig, fig_dict
+
+    plot_wavelength = obs_plot["wav"].to_numpy(dtype=float)
     gal_scaled = None
     if gal_path and gal_path.exists():
         gal_data = read_two_col_txt(gal_path)
-        if not gal_data.empty:
-            gal_scaled = gal_data.copy()
-            const_gal = _safe_float(row.get("CONST_GAL"))
-            if const_gal is not None:
-                gal_scaled["flux"] = gal_scaled["flux"] * const_gal
-            if bin_step:
-                gal_scaled = binspec(
-                    gal_scaled,
-                    gal_scaled["wav"].min(),
-                    gal_scaled["wav"].max(),
-                    bin_step,
-                )
-            if obs_plot is not None and not obs_plot.empty:
-                wmin, wmax = obs_plot["wav"].min(), obs_plot["wav"].max()
-                gal_scaled = gal_scaled.loc[
-                    (gal_scaled["wav"] >= wmin) & (gal_scaled["wav"] <= wmax)
-                ]
-            if gal_scaled is not None and not gal_scaled.empty:
-                _record(gal_scaled["flux"].to_numpy(dtype=float))
-                if "gal" in plot_flags:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=gal_scaled["wav"],
-                            y=gal_scaled["flux"],
-                            mode="lines",
-                            name=f"Galaxy ({row.get('GALAXY')})",
-                            line=_line_style("gal", dark),
-                        )
-                    )
-                    traces_added = True
-
-    # SN template and normalized template
-    sn_template = sn_normed = None
+        gal_scaled = _fit_grid_component(
+            gal_data,
+            target_wavelength=plot_wavelength,
+            redshift=redshift,
+            scale=const_gal,
+        )
+    sn_template = None
+    sn_fitted = None
     if sn_path and sn_path.exists():
         sn_data = read_two_col_txt(sn_path)
         if not sn_data.empty:
-            const_sn = _safe_float(row.get("CONST_SN"))
             sn_template = sn_data.copy()
-            if const_sn is not None:
-                sn_template["flux"] = sn_template["flux"] * const_sn
             if bin_step:
                 sn_template = binspec(
                     sn_template,
@@ -469,64 +522,31 @@ def plot_selected(sel_rows, plot_flags, bin_size, theme, table_data, json_data, 
                     sn_template["wav"].max(),
                     bin_step,
                 )
-            sn_normed = normalize_flux(sn_template)
-            _record(sn_template["flux"].to_numpy(dtype=float))
-            _record(sn_normed["flux"].to_numpy(dtype=float))
-
-    if "tem" in plot_flags and sn_template is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=sn_template["wav"],
-                y=sn_template["flux"],
-                mode="lines",
-                name="Template",
-                line=_line_style("tem", dark),
+            sn_fitted = _fit_grid_component(
+                sn_data,
+                target_wavelength=plot_wavelength,
+                redshift=redshift,
+                scale=const_sn,
+                extinction_magnitude=extinction_magnitude,
             )
-        )
-        traces_added = True
 
-    if "ute" in plot_flags and sn_normed is not None:
-        fig.add_trace(
-            go.Scatter(
-                x=sn_normed["wav"],
-                y=sn_normed["flux"],
-                mode="lines",
-                name="Normalized Template",
-                line=_line_style("ute", dark),
-            )
+    observation_minus_galaxy = None
+    if gal_scaled is not None and not gal_scaled.empty:
+        observation_minus_galaxy = pd.DataFrame(
+            {
+                "wav": plot_wavelength,
+                "flux": (
+                    obs_plot["flux"].to_numpy(dtype=float)
+                    - gal_scaled["flux"].to_numpy(dtype=float)
+                ),
+            }
         )
-        traces_added = True
 
-    # Observation − Galaxy
-    if (
-        "omg" in plot_flags
-        and obs_plot is not None
-        and gal_scaled is not None
-        and not obs_plot.empty
-        and not gal_scaled.empty
-    ):
-        gal_interp = np.interp(
-            obs_plot["wav"].to_numpy(),
-            gal_scaled["wav"].to_numpy(),
-            gal_scaled["flux"].to_numpy(),
-            left=np.nan,
-            right=np.nan,
-        )
-        omg_flux = obs_plot["flux"].to_numpy() - gal_interp
-        omg = pd.DataFrame({"wav": obs_plot["wav"], "flux": omg_flux})
-        omg = omg.replace([np.inf, -np.inf], np.nan).dropna()
-        if not omg.empty:
-            _record(omg["flux"].to_numpy(dtype=float))
-            fig.add_trace(
-                go.Scatter(
-                    x=omg["wav"],
-                    y=omg["flux"],
-                    mode="lines",
-                    name="Observation − Galaxy",
-                    line=_line_style("omg", dark),
-                )
-            )
-            traces_added = True
+    _add_trace("obs", obs_plot, "Observation")
+    _add_trace("gal", gal_scaled, f"Galaxy ({row.get('GALAXY')})")
+    _add_trace("tem", sn_template, "Template")
+    _add_trace("ute", sn_fitted, "Normalized Template")
+    _add_trace("omg", observation_minus_galaxy, "Observation − Galaxy")
 
     if not traces_added:
         fig, fig_dict = _fallback_figure(stored_fig, dark)
