@@ -177,6 +177,7 @@ def _wave_marks(mn: int, mx: int):
     return {i: str(i) for i in range(mn, mx + 1, step)}
 
 
+
 # Layout components
 known_redshift_tab = dbc.Card(
     dbc.CardBody(
@@ -242,12 +243,15 @@ redshift_range_tab = dbc.Card(
     )
 )
 
-z_tabs = dbc.Tabs(
-    [
-        dbc.Tab(known_redshift_tab, label="Known redshift"),
-        dbc.Tab(redshift_range_tab, label="Redshift range"),
-    ],
-    className="sf-redshift-tabs",
+z_tabs = html.Div(
+    dbc.Tabs(
+        [
+            dbc.Tab(known_redshift_tab, label="Known redshift"),
+            dbc.Tab(redshift_range_tab, label="Redshift range"),
+        ],
+        className="sf-redshift-tabs",
+    ),
+    className="sf-redshift-block",
 )
 
 uploader = html.Div(
@@ -264,7 +268,7 @@ uploader = html.Div(
             accept=".dat,.txt,.fits,.fit",
             multiple=False,
         ),
-        html.Small(id="sfgui-upload-status"),
+        html.Small(id="sfgui-upload-status", style={"display": "block", "marginTop": "7px"}),
     ]
 )
 
@@ -604,16 +608,18 @@ layout = html.Div(
                                 ),
                             ],
                             md=5,
+                            className="sf-stack",
                         ),
                         dbc.Col(
                             dbc.Card(dbc.CardBody([spectrum_graph, resolution_control, wavelength_slider])),
                             md=7,
                         ),
                     ],
-                    className="mt-3",
+                    className="mt-3 sf-main-row",
                 ),
             ],
             fluid=True,
+            className="sf-page-container",
         ),
     ]
 )
@@ -936,7 +942,7 @@ def update_graph(df_json, wave_range, theme, wave_bounds, resolution, filename):
         ),
         showlegend=True,
         legend=dict(
-            x=0.02,
+            x=0.87,
             y=0.98,
             xanchor="left",
             yanchor="top",

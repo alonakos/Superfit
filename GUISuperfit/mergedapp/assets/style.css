@@ -23,6 +23,12 @@
   --plot-bg:     #ffffff;
   --plot-grid:   rgba(0,0,0,.07);
   --plot-text:   #0f172a;
+  --sf-space-1:  4px;
+  --sf-space-2:  8px;
+  --sf-space-3:  12px;
+  --sf-space-4:  16px;
+  --sf-space-5:  24px;
+  --sf-page-gutter: 28px;
 }
 
 [data-theme="dark"] {
@@ -440,26 +446,6 @@ body[data-theme="dark"] {
   color: #e2e8f0 !important;
 }
 
-/* Also apply CSS vars to html so body/children inherit them */
-html[data-theme="dark"] {
-  --bg:         #0d0f18;
-  --surface:    #161929;
-  --surface2:   #1e2235;
-  --border:     #2a2f47;
-  --text:       #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent:     #60a5fa;
-  --accent-h:   #93c5fd;
-  --success:    #2ec4b6;
-  --danger:     #f87171;
-  --nav-bg:     #161929;
-  --nav-border: #2a2f47;
-  --shadow:     0 2px 16px rgba(0,0,0,.5);
-  --plot-bg:    #161929;
-  --plot-grid:  rgba(255,255,255,.07);
-  --plot-text:  #e2e8f0;
-}
-
 /* Legacy selector kept for any descendant overrides that used it */
 [data-theme="dark"] #react-entry-point,
 [data-theme="dark"] ._dash-loading,
@@ -507,106 +493,142 @@ html[data-theme="dark"] {
   fill: #e2e8f0 !important;
 }
 
-/* Base in-page tabs. Excludes the top navbar underline tabs. */
+/* Tab bar */
 #theme-wrapper .sf-redshift-tabs.nav-tabs,
-#theme-wrapper .sf-redshift-tabs .nav-tabs,
-.sf-redshift-tabs.nav-tabs,
-.sf-redshift-tabs .nav-tabs {
+#theme-wrapper .sf-redshift-tabs .nav-tabs {
   border-bottom: 1px solid var(--border) !important;
 }
 
+/* Inactive tabs */
 #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link,
-#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link,
-.sf-redshift-tabs.nav-tabs .nav-link,
-.sf-redshift-tabs .nav-tabs .nav-link {
-  background-color: transparent !important;
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link {
+  color: #646464  !important;
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 8px 8px 0 0 !important;
+  font-weight: 500;
+  transition: color .15s, background-color .15s;
+}
+
+/* Inactive tab hover */
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link:not(.active):hover,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link:not(.active):hover,
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link:not(.active):hover *,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link:not(.active):hover * {
   color: var(--accent) !important;
-  border-color: transparent !important;
-  border-radius: .45rem .45rem 0 0 !important;
-}
-
-#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link:hover,
-#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link:hover,
-.sf-redshift-tabs.nav-tabs .nav-link:hover,
-.sf-redshift-tabs .nav-tabs .nav-link:hover {
   background-color: var(--surface2) !important;
-  color: var(--accent-h) !important;
-  border-color: var(--border) var(--border) transparent !important;
 }
 
-/* Active redshift tab — strongest selector, including light and dark. */
-html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
-html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
-body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
-body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
-[data-theme="dark"] #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
-[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
-html[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
-html[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active,
-body[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
-body[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active,
-[data-theme="dark"] .sf-redshift-tabs.nav-tabs .nav-link.active,
-[data-theme="dark"] .sf-redshift-tabs .nav-tabs .nav-link.active {
-  background-color: #161929 !important;
-  color: #e2e8f0 !important;
-  border-color: #2a2f47 #2a2f47 #161929 !important;
-  box-shadow: none !important;
-}
-
-/* Active redshift tab — light mode. */
+/* Active tab */
 #theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active,
 #theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active,
-.sf-redshift-tabs.nav-tabs .nav-link.active,
-.sf-redshift-tabs .nav-tabs .nav-link.active {
-  background-color: var(--surface) !important;
+#theme-wrapper .sf-redshift-tabs.nav-tabs .nav-link.active:hover,
+#theme-wrapper .sf-redshift-tabs .nav-tabs .nav-link.active:hover {
   color: var(--text) !important;
-  border-color: var(--border) var(--border) var(--surface) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-bottom-color: var(--surface) !important;
+  font-weight: 500;
   box-shadow: none !important;
 }
 
-/* Redshift content panel. */
+/* Content panel connected to the active tab */
 #theme-wrapper .sf-redshift-tabs + .tab-content,
-#theme-wrapper .sf-redshift-tabs .tab-content,
-.sf-redshift-tabs + .tab-content,
-.sf-redshift-tabs .tab-content {
-  background-color: var(--surface) !important;
+#theme-wrapper .sf-redshift-tabs .tab-content {
+  margin-top: 0 !important;
+  background: var(--surface) !important;
   color: var(--text) !important;
   border: 1px solid var(--border) !important;
   border-top: 0 !important;
   border-radius: 0 0 var(--radius) var(--radius) !important;
 }
 
-html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs + .tab-content,
-html[data-theme="dark"] body #theme-wrapper .sf-redshift-tabs .tab-content,
-body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs + .tab-content,
-body[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .tab-content,
-[data-theme="dark"] #theme-wrapper .sf-redshift-tabs + .tab-content,
-[data-theme="dark"] #theme-wrapper .sf-redshift-tabs .tab-content,
-html[data-theme="dark"] .sf-redshift-tabs + .tab-content,
-html[data-theme="dark"] .sf-redshift-tabs .tab-content,
-body[data-theme="dark"] .sf-redshift-tabs + .tab-content,
-body[data-theme="dark"] .sf-redshift-tabs .tab-content,
-[data-theme="dark"] .sf-redshift-tabs + .tab-content,
-[data-theme="dark"] .sf-redshift-tabs .tab-content {
-  background-color: #161929 !important;
-  border-color: #2a2f47 !important;
-  color: #e2e8f0 !important;
-}
-
 #theme-wrapper .sf-redshift-tabs + .tab-content .card,
-#theme-wrapper .sf-redshift-tabs .tab-content .card,
-.sf-redshift-tabs + .tab-content .card,
-.sf-redshift-tabs .tab-content .card {
+#theme-wrapper .sf-redshift-tabs .tab-content .card {
   margin-top: 0 !important;
-  background-color: transparent !important;
+  background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
 }
 
 #theme-wrapper .sf-redshift-tabs + .tab-content .card-body,
-#theme-wrapper .sf-redshift-tabs .tab-content .card-body,
-.sf-redshift-tabs + .tab-content .card-body,
-.sf-redshift-tabs .tab-content .card-body {
-  background-color: transparent !important;
+#theme-wrapper .sf-redshift-tabs .tab-content .card-body {
+  background: transparent !important;
   color: var(--text) !important;
+}
+
+.sf-page-container {
+  width: 100%;
+  padding-left: var(--sf-page-gutter) !important;
+  padding-right: var(--sf-page-gutter) !important;
+  padding-top: var(--sf-space-5) !important;
+  padding-bottom: var(--sf-space-5) !important;
+}
+
+/* Input page: consistent space between the two columns. */
+.sf-main-row {
+  margin-top: 0 !important;
+  --bs-gutter-x: 24px;
+  --bs-gutter-y: 16px;
+}
+
+.sf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-4);
+}
+
+.sf-stack > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.sf-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sf-space-2);
+}
+
+.sf-action-row > .btn {
+  margin: 0 !important;
+}
+
+.sf-results-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-4);
+}
+
+.sf-results-stack > .card {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.sf-page-container .card-header {
+  padding: 12px 16px;
+}
+
+.sf-page-container .card-body {
+  padding: 16px;
+}
+
+@media (max-width: 991.98px) {
+  :root { --sf-page-gutter: 18px; }
+}
+
+@media (max-width: 575.98px) {
+  :root { --sf-page-gutter: 12px; }
+  .sf-page-container {
+    padding-top: 16px !important;
+    padding-bottom: 16px !important;
+  }
+}
+.input-group > .input-group-text {
+    border-radius: 8px 0 0 8px !important;
+}
+
+.input-group > .form-control,
+.input-group > .form-select {
+    border-radius: 0 8px 8px 0 !important;
 }

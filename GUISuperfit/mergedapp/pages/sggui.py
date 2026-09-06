@@ -260,7 +260,7 @@ def _fallback_figure(stored_fig, dark: bool = False):
 
 bestfit_card = dbc.Card(
     [
-        dbc.CardHeader(html.H4("Best Fit", className="mb-0")),
+        dbc.CardHeader(html.H5("Best Fit", className="mb-0 fw-bold")),
         dbc.CardBody(id="sggui-bestfit"),
     ],
     className="border-success",
@@ -286,40 +286,49 @@ graph_card = dbc.Card(
 )
 
 options_card = dbc.Card(
-    [
-        dbc.CardHeader(html.H4("Display Options", className="mb-0")),
-        dbc.CardBody(
-            [
-                bestfit_wrapper,
-                html.Div(
-                    [
-                        html.Span("Show graphs:", className="fw-semibold me-2"),
-                        dcc.Checklist(
-                            id="sggui-plots",
-                            options=_PLOT_TOGGLE_OPTIONS,
-                            value=_ALL_PLOT_VALUES,
-                            inputStyle={"marginRight": "6px"},
-                            labelStyle={
-                                "display": "inline-block",
-                                "marginRight": "18px",
-                                "marginBottom": "6px",
-                            },
-                            persistence=True,
-                            persistence_type="session",
-                        ),
-                    ],
-                    className="mb-3",
-                ),
-                html.Div(
-                    [
-                        html.Span("Binning (Å):", className="fw-semibold me-2"),
-                        dcc.Input(id="sggui-bin", type="number", value=10,
-                                  style={"width": "120px"}),
-                    ]
-                ),
-            ]
-        ),
-    ],
+    dbc.CardBody(
+        [
+            html.Div(
+                [
+                    html.Div(
+                        "Display Graphs:",
+                        className="fw-semibold mb-2",
+                    ),
+                    dcc.Checklist(
+                        id="sggui-plots",
+                        options=_PLOT_TOGGLE_OPTIONS,
+                        value=_ALL_PLOT_VALUES,
+                        inputStyle={"marginRight": "6px"},
+                        labelStyle={
+                            "display": "inline-block",
+                            "marginRight": "20px",
+                            "marginBottom": "8px",
+                        },
+                        persistence=True,
+                        persistence_type="session",
+                    ),
+                ],
+                className="mb-3",
+            ),
+
+            html.Div(
+                [
+                    html.Span(
+                        "Binning (Å):",
+                        className="fw-semibold me-3",
+                    ),
+                    dcc.Input(
+                        id="sggui-bin",
+                        type="number",
+                        value=10,
+                        style={"width": "110px"},
+                    ),
+                ],
+                className="d-flex align-items-center",
+            ),
+        ],
+        style={"padding": "16px 18px"},
+    ),
     className="shadow-sm mb-3",
 )
 
@@ -347,6 +356,7 @@ layout = html.Div(
     [
         dbc.Container(
             [
+                bestfit_wrapper,
                 options_card,
                 graph_card,
                 table_card,
@@ -355,7 +365,7 @@ layout = html.Div(
                 dcc.Store(id="sggui-last-figure", storage_type="memory"),
             ],
             fluid=True,
-            className="py-3",
+            className="py-3 sf-page-container sf-results-stack",
         ),
     ]
 )
