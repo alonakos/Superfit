@@ -57,7 +57,7 @@ _TRACE_STYLES = {
     "obs": {"color": "#111111"},
     "gal": {"color": "#d62728"},
     "tem": {"color": "#9467bd"},
-    "ute": {"color": "#ff7f0e", "dash": "dash"},
+    "ute": {"color": "#ff7f0e"},
     "omg": {"color": "#2ca02c"},
 }
 
@@ -65,7 +65,7 @@ _TRACE_STYLES_DARK = {
     "obs": {"color": "#e2e8f0"},
     "gal": {"color": "#ff6b6b"},
     "tem": {"color": "#c77dff"},
-    "ute": {"color": "#ffd166", "dash": "dash"},
+    "ute": {"color": "#ffd166"},
     "omg": {"color": "#2ec4b6"},
 }
 
