@@ -104,7 +104,7 @@ def bin_spectrum(spectrum, resolution):
         fluxerror = spectrum[:,2]
     else:
         fluxerror = None
-    if lam[15] - lam[16] > resolution:
+    if np.median(np.diff(lam)) > resolution:
         bin_spectra = spectrum
     else:
         number_of_bins = np.math.floor((lam[-1] - lam[0]) / resolution)

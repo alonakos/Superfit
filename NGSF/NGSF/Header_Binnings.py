@@ -2,6 +2,9 @@ import numpy as np
 from astropy import table
 from scipy import stats
 from PyAstronomy import pyasl
+import os
+import numpy as np
+from astropy.io import fits
 
 
 def kill_header(file_name):
@@ -25,41 +28,47 @@ def kill_header(file_name):
 
     """
 
-    lines = []
+    # FITS 
+    if file_name.lower().endswith((".fits", ".fit", ".fts")):
 
-    file = open(file_name, "r")
+        with fits.open(file_name) as hdul:
+            header = hdul[0].header
+            flux = np.asarray(hdul[0].data, dtype=float).squeeze()
 
-    lines = file.readlines()
+        crval = header["CRVAL1"]
+        if "CDELT1" in header:
+            dispersion = header["CDELT1"]
+        elif "CD1_1" in header:
+            dispersion = header["CD1_1"]
+        else:
+            raise ValueError("Cannot find wavelength dispersion in FITS header.")
 
-    lines = [i for i in lines if i]
+        crpix = header.get("CRPIX1", 1.0)
+        pixels = np.arange(len(flux)) + 1
+        wavelength = crval + (pixels - crpix) * dispersion
+        spectrum = np.column_stack((wavelength, flux))
+        return spectrum
 
-    lines = [
-        i
-        for i in lines
-        if not i[0].isalpha() and i[0] != "#" and i[0] != "%" and i[0] != "@"
-    ]
+    # Plain-text spectrum
+    else:
 
-    lines = [i for i in lines if i[0] != "\n"]
+        with open(file_name, "r") as file:
+            lines = file.readlines()
 
-    lines = [s.strip("\n") for s in lines]  # remove empty lines
+        lines = [
+            i for i in lines
+            if i.strip()
+            and not i[0].isalpha()
+            and i[0] not in "#%@"
+        ]
 
-    lines = [s.replace("\n", "") for s in lines]  # replace with nothing
+        columns = np.array([line.split() for line in lines])
 
+        lam_floats = [float(i) for i in columns[:, 0]]
+        flux_floats = [float(i) for i in columns[:, 1]]
 
-    columns = []
-
-    for line in lines:
-        ii = line.split()
-        columns.append(ii)
-
-    columns = np.array(columns)
-
-    lam_floats = [float(i) for i in columns[:, 0]]
-    flux_floats = [float(i) for i in columns[:, 1]]
-
-    spectrum = np.array([lam_floats, flux_floats]).T
-
-    return spectrum
+        spectrum = np.array([lam_floats, flux_floats]).T
+        return spectrum
 
 
 def bin_spectrum(spectrum, resolution):
