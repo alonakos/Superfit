@@ -32,23 +32,81 @@ def kill_header(file_name):
     if file_name.lower().endswith((".fits", ".fit", ".fts")):
 
         with fits.open(file_name) as hdul:
-            header = hdul[0].header
-            flux = np.asarray(hdul[0].data, dtype=float).squeeze()
+            for hdu in hdul:
+                if hdu.data is None:
+                    continue
+                header = hdu.header
+                if isinstance(hdu, (fits.BinTableHDU, fits.TableHDU)):
+                    names = {
+                        name.lower(): name for name in hdu.columns.names
+                    }
+                    wave_key = next(
+                        (names[k] for k in ("wave", "wavelength", "lambda", "lam")
+                         if k in names),
+                        None,
+                    )
+                    flux_key = next(
+                        (names[k] for k in ("flux", "flam", "spec")
+                         if k in names),
+                        None,
+                    )
 
-        crval = header["CRVAL1"]
-        if "CDELT1" in header:
-            dispersion = header["CDELT1"]
-        elif "CD1_1" in header:
-            dispersion = header["CD1_1"]
-        else:
-            raise ValueError("Cannot find wavelength dispersion in FITS header.")
+                    if wave_key is None or flux_key is None:
+                        continue
 
-        crpix = header.get("CRPIX1", 1.0)
-        pixels = np.arange(len(flux)) + 1
-        wavelength = crval + (pixels - crpix) * dispersion
-        spectrum = np.column_stack((wavelength, flux))
-        return spectrum
+                    wavelength = np.asarray(
+                        hdu.data[wave_key], dtype=float
+                    ).squeeze()
+                    flux = np.asarray(
+                        hdu.data[flux_key], dtype=float
+                    ).squeeze()
 
+                else:
+                    arr = np.asarray(hdu.data, dtype=float)
+
+                    if arr.ndim == 3 and arr.shape[1] == 1:
+                        band1 = str(
+                            header.get("BANDID1", "")
+                        ).strip().lower()
+
+                        if arr.shape[0] == 1 or band1.startswith("spectrum"):
+                            flux = arr[0, 0, :]
+                        else:
+                            continue
+                    else:
+                        flux = arr.squeeze()
+
+                    if flux.ndim != 1:
+                        continue
+
+                    dispersion = header.get(
+                        "CDELT1", header.get("CD1_1")
+                    )
+                    if "CRVAL1" not in header or dispersion is None:
+                        continue
+
+                    pixels = np.arange(flux.size) + 1
+                    wavelength = (
+                        float(header["CRVAL1"])
+                        + (pixels - float(header.get("CRPIX1", 1)))
+                        * float(dispersion)
+                    )
+
+                if (
+                    wavelength.ndim != 1
+                    or flux.ndim != 1
+                    or wavelength.size != flux.size
+                ):
+                    continue
+
+                valid = np.isfinite(wavelength) & np.isfinite(flux)
+                spectrum = np.column_stack(
+                    (wavelength[valid], flux[valid])
+                )
+                if len(spectrum) < 2:
+                    continue
+                return spectrum[np.argsort(spectrum[:, 0])]
+        raise ValueError("No supported spectrum found in the FITS file.")
     # Plain-text spectrum
     else:
 

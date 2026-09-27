@@ -712,16 +712,41 @@ def _parse_fits(data: bytes, filename: str) -> pd.DataFrame:
                             "wavelength": d[wav_key].astype(float).ravel(),
                             "flux":       d[flx_key].astype(float).ravel(),
                         })
-                elif hasattr(d, 'ndim') and d.ndim >= 1:
-                    hdr   = ext.header
-                    n     = int(d.ravel().shape[0])
-                    crval = float(hdr.get('CRVAL1', 0))
-                    cdelt = float(hdr.get('CDELT1', hdr.get('CD1_1', 1)))
-                    crpix = float(hdr.get('CRPIX1', 1))
-                    wav   = crval + (np.arange(1, n + 1) - crpix) * cdelt
-                    flx   = d.ravel().astype(float)
-                    if len(wav) == len(flx) and len(wav) > 1:
-                        return pd.DataFrame({"wavelength": wav, "flux": flx})
+                elif hasattr(d, "ndim") and d.ndim >= 1:
+                    hdr = ext.header
+                    arr = np.asarray(d, dtype=float)
+
+                    if arr.ndim == 3 and arr.shape[1] == 1:
+                        band1 = str(
+                            hdr.get("BANDID1", "")
+                        ).strip().lower()
+
+                        if arr.shape[0] == 1 or band1.startswith("spectrum"):
+                            flx = arr[0, 0, :]
+                        else:
+                            continue
+                    else:
+                        flx = arr.squeeze()
+
+                    if flx.ndim != 1 or flx.size < 2:
+                        continue
+
+                    if "CRVAL1" not in hdr:
+                        continue
+
+                    dispersion = hdr.get("CDELT1", hdr.get("CD1_1"))
+                    if dispersion is None:
+                        continue
+
+                    crval = float(hdr["CRVAL1"])
+                    crpix = float(hdr.get("CRPIX1", 1))
+                    pixels = np.arange(flx.size) + 1
+                    wav = crval + (pixels - crpix) * float(dispersion)
+
+                    return pd.DataFrame({
+                        "wavelength": wav,
+                        "flux": flx,
+                    })
     except Exception:
         pass
     return pd.DataFrame(columns=["wavelength", "flux"])
