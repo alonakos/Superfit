@@ -10,7 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from astropy.io import fits
 import io as _io
-
+import shutil
+import threading
 import dash
 import dash_bootstrap_components as dbc
 from dash import dcc, html, callback
@@ -44,6 +45,39 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 RUNS = {}
+
+def _clean_old_files():
+    while True:
+        cutoff = time.time() - 24 * 3600
+
+        for root in (RESULTS_DIR, UPLOAD_DIR / "uploads"):
+            if not root.is_dir():
+                continue
+
+            for folder in root.iterdir():
+                try:
+                    if str(uuid.UUID(folder.name)) != folder.name:
+                        continue
+                    if not folder.is_dir() or folder.is_symlink():
+                        continue
+
+                    if root == RESULTS_DIR:
+                        run = RUNS.get(folder.name)
+                        if run and run["proc"].poll() is None:
+                            continue
+
+                    newest = max(
+                        (p.stat().st_mtime for p in folder.rglob("*") if p.is_file()),
+                        default=folder.stat().st_mtime,
+                    )
+                    if newest < cutoff:
+                        shutil.rmtree(folder)
+
+                except (OSError, ValueError):
+                    pass
+
+        time.sleep(3600)
+threading.Thread(target=_clean_old_files, daemon=True).start()
 
 
 # Progress helpers
@@ -652,6 +686,7 @@ def _build_params(
     wave_range=None,
     resolution=10,
     progress_path=None,
+    results_dir=None,
 ):
     if wave_range and len(wave_range) == 2:
         lower_lam = float(wave_range[0])
@@ -672,7 +707,7 @@ def _build_params(
         "resolution": _safe_resolution(resolution),
         "lower_lam": lower_lam,
         "upper_lam": upper_lam,
-        "saving_results_path": f"{RESULTS_DIR}{os.sep}",
+        "saving_results_path": f"{results_dir or RESULTS_DIR}{os.sep}",
         "pkg_dir": str(BASE_DIR),
         "temp_gal_tr": galaxies or [],
         "temp_sn_tr": sn_types or [],
@@ -756,6 +791,7 @@ def _parse_dat(contents, filename):
     _, content_string = contents.split(",", 1)
     data = base64.b64decode(content_string)
     dest = UPLOAD_DIR / filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
     with open(dest, "wb") as f:
         f.write(data)
     if filename.lower().endswith(('.fits', '.fit')):
@@ -841,7 +877,9 @@ def upload_file(contents, filename):
             True,
         )
 
-    df = _parse_dat(contents, filename)
+    safe_name = Path(filename.replace("\\", "/")).name
+    saved_name = f"uploads/{uuid.uuid4()}/{safe_name}"
+    df = _parse_dat(contents, saved_name)
     if df.empty:
         return (
             "File parsed as empty",
@@ -867,7 +905,7 @@ def upload_file(contents, filename):
 
     return (
         status,
-        filename,
+         saved_name,
         {
             "wavelength": df["wavelength"].astype(float).tolist(),
             "flux": df["flux"].astype(float).tolist(),
@@ -1015,7 +1053,7 @@ def update_graph(df_json, wave_range, theme, wave_bounds, resolution, filename):
             x=full_plot["wavelength"],
             y=full_plot["flux"],
             mode="lines",
-            name=filename,
+            name=Path(filename).name if filename else "Spectrum",
             line=dict(width=1.5, color=full_col),
             hoverinfo="skip",
         )
@@ -1109,9 +1147,6 @@ def generate_json(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_name = f"parameters_{safe_base}_{timestamp}.json"
 
-    with open(RESULTS_DIR / json_name, "w") as f:
-        f.write(text)
-
     status = html.Span(
         [
             dbc.Badge("Parameters saved", color="info", className="me-2"),
@@ -1167,10 +1202,13 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
             True,
         )
 
-    run_id        = str(uuid.uuid4())
-    progress_path = RESULTS_DIR / f"progress_{run_id}.json"
-    stdout_path   = RESULTS_DIR / f"run_{run_id}.log"
-    stderr_path   = RESULTS_DIR / f"run_{run_id}.err"
+    run_id = str(uuid.uuid4())
+    run_dir = RESULTS_DIR / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+
+    progress_path = run_dir / f"progress_{run_id}.json"
+    stdout_path = run_dir / f"run_{run_id}.log"
+    stderr_path = run_dir / f"run_{run_id}.err"
 
     _write_progress(progress_path, 0, "Starting fit")
 
@@ -1179,7 +1217,7 @@ def start_fit(n, z_known, z1, z2, dz, sn_types, epoch_range,
         galaxies, a_hi, a_lo, a_int,
         wave_range=wave_range,
         resolution=resolution,
-        progress_path=str(progress_path),
+        progress_path=str(progress_path),results_dir=run_dir,
     )
 
     _row_show  = {"display": "block"}
@@ -1272,7 +1310,7 @@ def poll_fit(n_intervals, state):
         _write_progress(state["progress_path"], 100, "Fit completed")
         return (100, "100%", False, _row_show, "✓ Fit complete — redirecting…",
                 True, _run_show, _stop_hide,
-                {"action": "run", "ts": time.time()},
+                {"action": "run", "run_id": run_id, "ts": time.time()},
                 "/sggui")
 
     try:    err = Path(state.get("stderr_path", "")).read_text()

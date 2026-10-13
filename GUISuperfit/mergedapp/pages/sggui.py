@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -416,10 +417,18 @@ layout = html.Div(
     prevent_initial_call=False,
 )
 def load_results(run_flag):
-    if isinstance(run_flag, dict) and run_flag.get("action") == "clear":
+    if not isinstance(run_flag, dict) or run_flag.get("action") != "run":
         return _empty_results_response()
 
-    latest = find_latest_csv_in(RESULTS_DIR)
+    try:
+        run_id = str(uuid.UUID(run_flag.get("run_id", "")))
+    except (ValueError, TypeError, AttributeError):
+        return _empty_results_response()
+
+    if run_id != run_flag.get("run_id"):
+        return _empty_results_response()
+
+    latest = find_latest_csv_in(RESULTS_DIR / run_id)
     if latest is None:
         return _empty_results_response()
 
