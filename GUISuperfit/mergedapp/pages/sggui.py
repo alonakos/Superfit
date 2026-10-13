@@ -227,7 +227,24 @@ def _base_figure(dark: bool = False) -> go.Figure:
         margin=dict(l=30, r=20, t=20, b=40),
         showlegend=True,
         uirevision="sggui",
+        hovermode="x unified",
+        hoverlabel=dict(
+            bgcolor="#1a1d27" if dark else "white",
+            bordercolor="#e2e8f0" if dark else "#555555",
+            font=dict(
+                color="#e2e8f0" if dark else "#222222",
+                size=12,
+            ),
+        ),
         **kwargs,
+    )
+    fig.update_xaxes(
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikedash="dot",
+        spikethickness=1,
+        spikecolor="#e2e8f0" if dark else "#444444",
     )
     return fig
 
@@ -346,7 +363,24 @@ results_table = dash_table.DataTable(
 
 table_card = dbc.Card(
     [
-        dbc.CardHeader(html.H4("Galaxy Spectrum Match", className="mb-0")),
+        dbc.CardHeader(
+            html.Div(
+                [
+                    html.H4(
+                        "Galaxy Spectrum Match",
+                        className="mb-0",
+                    ),
+                    dbc.Button(
+                        "Download CSV",
+                        id="sggui-download-csv-button",
+                        color="primary",
+                        size="sm",
+                        disabled=True,
+                    ),
+                ],
+                className="d-flex justify-content-between align-items-center flex-wrap gap-2",
+            )
+        ),
         dbc.CardBody(results_table),
     ],
     className="shadow-sm mb-4",
@@ -360,6 +394,7 @@ layout = html.Div(
                 options_card,
                 graph_card,
                 table_card,
+                dcc.Download(id="sggui-download-csv"),
                 dcc.Store(id="sggui-results-path", storage_type="memory"),
                 dcc.Store(id="sggui-results-data", storage_type="memory"),
                 dcc.Store(id="sggui-last-figure", storage_type="memory"),
@@ -407,6 +442,38 @@ def load_results(run_flag):
 
     return df.to_json(orient="split"), str(latest), data, columns, selected
 
+@callback(
+    Output("sggui-download-csv-button", "disabled"),
+    Input("sggui-table", "data"),
+)
+def toggle_csv_download_disabled(table_data):
+    return not bool(table_data)
+
+@callback(
+    Output("sggui-download-csv", "data"),
+    Input("sggui-download-csv-button", "n_clicks"),
+    State("sggui-table", "data"),
+    State("sggui-table", "columns"),
+    prevent_initial_call=True,
+)
+def download_results_csv(n_clicks, table_data, table_columns):
+    if not n_clicks or not table_data:
+        return dash.no_update
+
+    column_ids = [
+        col["id"] for col in (table_columns or [])
+    ]
+
+    df = pd.DataFrame(table_data)
+
+    if column_ids:
+        df = df.reindex(columns=column_ids)
+
+    return dcc.send_data_frame(
+        df.to_csv,
+        "galaxy_spectrum_match.csv",
+        index=False,
+    )
 
 @callback(
     Output("sggui-graph", "figure"),
